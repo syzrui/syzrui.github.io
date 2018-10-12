@@ -2,25 +2,26 @@
 /* CSS Document */
 #num1
 img{
-	height: 50px;
+	height:750px;
 }
 h1{
 	position:absolute;
-	color: black;
-	background: #9B18D3;
-	margin: 50px 100px 20px 100px;
+	color: #1c6efbe6;
+	background: #278CA799;
+	margin: 100px 100px 70px 500px;
 } 
 p{
-	color: blueviolet;
+	color: #ffb7db;
 	position: absolute;
 	left:5px;
+	background-color: #74a5cf;
+	margin: 230px 100px 100px 90px;
 }
 #num2 
 p{
-	background: #9B18D3;
+	background: #D36E18;
 	position: absolute;
 	right: 5px;
 	
+	margin: 270px 100px 100px 90px;
 }
-
-
