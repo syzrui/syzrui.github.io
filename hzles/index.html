@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+<head>
+	<style type="text/css">
+#body{text-align:center;}
+#test{width:200px;position:absolute;margin:10px auto;height:100px;border:2px dotted red;text-align:center}
+</style>
+<meta charset="utf-8">
+<title>电速教育（集团）有限公司</title>
+	<link type="text/css" href="css1.css">
+</head>
+
+<body><div style="margin:10px 200px">
+	<div>
+		<input type="button" value="~~~点我开始抖动~~" onclick="nn.start()" /></div>
+	<div>
+		<input type="button" value="点我停止抖动" onclick="nn.stop()" /></div>
+	<div id="test">
+		<br>
+		<a href="http://www.hpu.edu.cn">关注河南理工大学电气工程学院</a><br>
+		<img border="0" src="http://www.sharejs.com/images/logo.gif"></div>
+</div>
+<p>　</p>
+<p>　</p>
+
+
+</body>
+
+</html>
+<script type="text/javascript">
+ var m=document.getElementById("test");
+function SKclass (obj,Rate,speed) {
+	 var oL=obj.offsetLeft;
+	 var oT=obj.offsetTop;
+	 this.stop=null;
+	 this.oTime=null;
+	 var om=this;
+	 this.start=function(){
+			 if(parseInt(obj.style.left)==oL-2){
+				obj.style.top=oT+2+"px";
+				setTimeout(function(){obj.style.left=oL+2+"px"},Rate)
+			 }
+			 else{
+				obj.style.top=oT-2+"px";
+				setTimeout(function(){obj.style.left=oL-2+"px"},Rate)
+			}
+		this.oTime=setTimeout(function(){om.start()},speed);
+	 }
+	 this.stop=function(){
+	   clearTimeout(this.oTime);
+	 
+	 }
+}
+var nn=new SKclass(m,20,70);
+</script>
+
+	
+
+	<div id="num1">
+		<img src="logo1.jpg" href="http://syrui.fun
+">
+		<h1>电速教育公司概要</h1>
+	<p>电速教育公司隶属于电速集团。
+		电速集团最初建立于hpu，雏形为电速教育公司。目前已经在教育、物流、餐饮、互联网、工业、智能电器等领域有多家子公司和投资集团。
+	
+	</p>
+	
+	</div>
+	<div id="num2">
+		<p>电速教育公司的主营业务有：小学初中高中数学物理化学英文培训，少年编程班，少年理化培养兴趣班，高考志愿报名咨询等....目前已经在河南，河北，北京，山东，山西，陕西，安徽，广西等省建立多家分公司以及相应的机构</p>
+	
+	</div>
+</body>
+</html>
