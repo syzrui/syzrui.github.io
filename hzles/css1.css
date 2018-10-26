@@ -1,0 +1,25 @@
+@charset "utf-8";
+/* CSS Document */
+#num1
+img{
+	height: auto;
+}
+h1{
+	position:absolute;
+	color: black;
+	background: #9B18D3;
+	margin: 5px 10px 2px 10px;
+} 
+p{
+	color: blueviolet;
+	position: absolute;
+	left:5px;
+}
+#num2 p{
+	background: #9B18D3;
+	position: absolute;
+	right: 5px;
+	
+}
+
+
