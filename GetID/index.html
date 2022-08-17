@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>在线查询</title>
+    <script src="./js/util.js"></script>
+    <script src="./js/axios.min.js"></script>
+    <script src="./js/app.js"></script>
+
+    <link rel="stylesheet" href="./css/main.css" />
+</head>
+
+<body>
+    <div class="container">
+        <img src="./img/newlogo2.png" alt="logo" />
+        <div class="input-area">
+            <select name="" id="select">
+                <option value="queryQQToPhone" selected>qq号查询绑定手机</option>
+                <option value="queryPhoneToQQ">手机号查询绑定qq</option>
+                <option value="queryQQToLol">QQ号查询LOL信息</option>
+                <option value="queryLolToQQ">LOL查询QQ信息</option>
+                <option value="queryQQToLaomi">QQ号查询老密(测试中)</option>
+                <option value="queryWeiboToPhone">微博ID查手机号</option>
+                <option value="queryPhoneToWeibo">手机号查微博ID</option>
+            </select>
+            <input type="text" id="input" placeholder="输入你要查询的内容..." />
+        </div>
+        <button id="submit"><span>查</span>询</button>
+        <div class="result" id="result">结果将显示在这里...</div>
+        <div class="queryHistory">
+            <span>查询历史</span><span style="color: #c0c4cc">(仅保留最近十条)</span>
+            <!-- <div><i class="triangle"></i></div> -->
+        </div>
+        <div class="queryHistoryArea"></div>
+    </div>
+    <footer>本网页仅供测试，严禁传播或用于其他用途！</footer>
+</body>
+
+</html>
