@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>流体混合模拟</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+  :root {
+    --c1: #ff3060;
+    --c2: #00c8ff;
+    --bg: #04040e;
+    --panel: #070712;
+    --border: #0e0e1e;
+    --text-dim: #252535;
+    --text-mid: #404055;
+    --text-hi:  #6a6a88;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    color: var(--text-mid);
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ═══════════════════════════════
+     LEFT PANEL
+  ═══════════════════════════════ */
+  .side-panel {
+    width: 190px;
+    height: 540px;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-right: none;
+    border-radius: 8px 0 0 8px;
+    overflow: hidden;
+  }
+
+  .panel-block {
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .panel-block.grow { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; }
+
+  .sec-label {
+    font-size: 0.43rem;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .sec-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Tool buttons ── */
+  .tool-list { display: flex; flex-direction: column; gap: 5px; }
+
+  .tool-btn {
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    font-size: 0.57rem;
+    letter-spacing: 0.06em;
+    padding: 8px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-mid);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    transition: all 0.15s;
+    text-align: left;
+    width: 100%;
+  }
+  .tool-icon {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .tool-icon.stir {
+    background: transparent;
+    border: 1.5px solid currentColor;
+    position: relative;
+  }
+  .tool-icon.stir::after {
+    content: '';
+    position: absolute;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:5px; height:5px;
+    border-radius:50%;
+    background:currentColor;
+  }
+  .tool-btn:hover { color:var(--text-hi); border-color:#1a1a30; background:rgba(255,255,255,0.015); }
+  .tool-btn.active { color:var(--text-hi); background:rgba(255,255,255,0.025); }
+  .tool-btn[data-tool="pour1"].active { border-color:#3a1020; box-shadow:inset 3px 0 0 var(--c1); }
+  .tool-btn[data-tool="pour2"].active { border-color:#002040; box-shadow:inset 3px 0 0 var(--c2); }
+  .tool-btn[data-tool="stir"].active  { border-color:#1a1a38; box-shadow:inset 3px 0 0 #556; }
+
+  /* ── Color pickers ── */
+  .color-row {
+    display: grid;
+    grid-template-columns: 14px 22px 1fr;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 9px;
+  }
+  .color-row:last-child { margin-bottom: 0; }
+  .color-tag { font-size: 0.44rem; color: var(--text-dim); letter-spacing: 0.05em; }
+
+  .color-dot {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.06);
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+  }
+  .color-dot:hover { transform: scale(1.15); }
+  .color-dot input[type=color] {
+    position:absolute; inset:0; opacity:0;
+    cursor:pointer; width:100%; height:100%; border:none; padding:0;
+  }
+
+  .hex-val {
+    font-size: 0.52rem;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    background: rgba(0,0,0,0.25);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 3px 7px;
+    font-family: 'Share Tech Mono', monospace;
+    transition: color 0.3s;
+    cursor: default;
+  }
+
+  /* ── Viscosity ── */
+  .visc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .visc-name { font-size: 0.54rem; color: var(--text-hi); }
+  .visc-num  { font-size: 0.48rem; color: var(--text-dim); }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 2px;
+    background: var(--border);
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--text-hi); border: none; cursor: pointer;
+    box-shadow: 0 0 5px rgba(100,100,180,0.4);
+    transition: transform 0.12s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.35); }
+  input[type=range]::-moz-range-thumb {
+    width:12px; height:12px; border-radius:50%;
+    background: var(--text-hi); border:none;
+  }
+
+  .visc-ends {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.4rem;
+    color: var(--text-dim);
+    margin-top: 6px;
+    letter-spacing: 0.08em;
+  }
+
+  /* ── Buttons ── */
+  .btn-row { display: flex; gap: 6px; }
+  .btn {
+    flex: 1;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.5rem;
+    letter-spacing: 0.18em;
+    padding: 7px 0;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.18s;
+  }
+  .btn:hover { color:var(--text-hi); border-color:#1c1c38; background:rgba(255,255,255,0.018); }
+
+  /* ═══════════════════════════════
+     CANVAS
+  ═══════════════════════════════ */
+  .canvas-wrap {
+    position: relative;
+    flex-shrink: 0;
+    line-height: 0;
+  }
+  /* inner vignette */
+  .canvas-wrap::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse at center,
+      transparent 52%, rgba(4,4,14,0.55) 100%);
+  }
+
+  #c {
+    display: block;
+    width: 540px; height: 540px;
+    cursor: none;
+  }
+
+  /* ═══════════════════════════════
+     RIGHT PANEL — meters
+  ═══════════════════════════════ */
+  .right-panel {
+    width: 52px;
+    height: 540px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0 14px;
+    gap: 0;
+  }
+
+  .v-label {
+    font-size: 0.38rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    margin-bottom: 16px;
+  }
+
+  .meters-wrap {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding-bottom: 8px;
+  }
+  .meter-bar {
+    width: 8px;
+    height: 160px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .meter-fill {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    border-radius: 3px;
+    transition: height 0.12s ease;
+  }
+
+  .meter-labels {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .m-label {
+    font-size: 0.38rem;
+    width: 8px;
+    text-align: center;
+    color: var(--text-dim);
+    letter-spacing: 0;
+  }
+
+  /* ═══════════════════════════════
+     CURSOR
+  ═══════════════════════════════ */
+  #cursor-dot {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%,-50%);
+    z-index: 9999;
+    mix-blend-mode: screen;
+    transition: background 0.2s, box-shadow 0.2s, width 0.1s, height 0.1s, opacity 0.2s;
+    opacity: 0;
+  }
+
+  /* pour ripple */
+  @keyframes ripple {
+    from { transform:translate(-50%,-50%) scale(0.2); opacity:0.8; }
+    to   { transform:translate(-50%,-50%) scale(2.8); opacity:0; }
+  }
+  .ripple-el {
+    position: fixed;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    pointer-events: none;
+    z-index: 9998;
+    animation: ripple 0.48s ease-out forwards;
+  }
+
+  /* title */
+  .title-bar {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    font-size: 0.52rem; letter-spacing: 0.5em; text-transform: uppercase;
+    color: var(--text-dim); pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="title-bar">fluid mixer</div>
+
+<!-- ═══ LEFT PANEL ═══ -->
+<div class="side-panel">
+
+  <div class="panel-block">
+    <div class="sec-label">工具模式</div>
+    <div class="tool-list">
+      <button class="tool-btn active" data-tool="pour1" id="tb1">
+        <div class="tool-icon" id="ti1"></div>倾倒液体&nbsp;1
+      </button>
+      <button class="tool-btn" data-tool="pour2" id="tb2">
+        <div class="tool-icon" id="ti2"></div>倾倒液体&nbsp;2
+      </button>
+      <button class="tool-btn" data-tool="stir" id="tb3">
+        <div class="tool-icon stir"></div>仅搅动液体
+      </button>
+    </div>
+  </div>
+
+  <div class="panel-block">
+    <div class="sec-label">颜色调节</div>
+    <div class="color-row">
+      <span class="color-tag">C1</span>
+      <div class="color-dot" id="dot1">
+        <input type="color" id="cp1" value="#ff3060">
+      </div>
+      <div class="hex-val" id="hex1">#ff3060</div>
+    </div>
+    <div class="color-row">
+      <span class="color-tag">C2</span>
+      <div class="color-dot" id="dot2">
+        <input type="color" id="cp2" value="#00c8ff">
+      </div>
+      <div class="hex-val" id="hex2">#00c8ff</div>
+    </div>
+  </div>
+
+  <div class="panel-block">
+    <div class="sec-label">液体粘度</div>
+    <div class="visc-header">
+      <span class="visc-name" id="viscName">中等</span>
+      <span class="visc-num" id="viscNum">5 / 10</span>
+    </div>
+    <input type="range" id="viscSlider" min="1" max="10" value="5" step="1">
+    <div class="visc-ends"><span>清水</span><span>蜂蜜</span></div>
+  </div>
+
+  <div class="panel-block grow">
+    <div class="btn-row">
+      <button class="btn" id="initBtn">重置</button>
+      <button class="btn" id="clearBtn">清空</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ CANVAS ═══ -->
+<div class="canvas-wrap">
+  <canvas id="c" width="128" height="128"></canvas>
+</div>
+
+<!-- ═══ RIGHT PANEL ═══ -->
+<div class="right-panel">
+  <span class="v-label">密度</span>
+  <div class="meters-wrap">
+    <div class="meter-bar">
+      <div class="meter-fill" id="fill1"></div>
+    </div>
+    <div class="meter-bar">
+      <div class="meter-fill" id="fill2"></div>
+    </div>
+  </div>
+  <div class="meter-labels">
+    <span class="m-label" id="ml1">C1</span>
+    <span class="m-label" id="ml2">C2</span>
+  </div>
+</div>
+
+<div id="cursor-dot"></div>
+
+<script>
+// ════════════════════════════════════════════
+//  Stam 1999 Real-Time Fluid Solver
+// ════════════════════════════════════════════
+const N    = 128;
+const SZ   = (N+2)*(N+2);
+const ITER = 8;
+const DT   = 0.018;
+const DIFF = 0.00002;
+let   VISC = 0.00010;
+
+const IX = (x,y) => x + (N+2)*y;
+
+const Vx=new Float32Array(SZ), Vy=new Float32Array(SZ);
+const Vtx=new Float32Array(SZ), Vty=new Float32Array(SZ);
+const Fx=new Float32Array(SZ),  Fy=new Float32Array(SZ);
+const d1=new Float32Array(SZ),  d2=new Float32Array(SZ);
+const dtA=new Float32Array(SZ);
+const s1=new Float32Array(SZ),  s2=new Float32Array(SZ);
+
+function setBnd(b,x){
+  for(let i=1;i<=N;i++){
+    x[IX(0,i)]  = b===1?-x[IX(1,i)]:x[IX(1,i)];
+    x[IX(N+1,i)]= b===1?-x[IX(N,i)]:x[IX(N,i)];
+    x[IX(i,0)]  = b===2?-x[IX(i,1)]:x[IX(i,1)];
+    x[IX(i,N+1)]= b===2?-x[IX(i,N)]:x[IX(i,N)];
+  }
+  x[IX(0,0)]=.5*(x[IX(1,0)]+x[IX(0,1)]);
+  x[IX(0,N+1)]=.5*(x[IX(1,N+1)]+x[IX(0,N)]);
+  x[IX(N+1,0)]=.5*(x[IX(N,0)]+x[IX(N+1,1)]);
+  x[IX(N+1,N+1)]=.5*(x[IX(N,N+1)]+x[IX(N+1,N)]);
+}
+
+function linSolve(b,x,x0,a,c){
+  const r=1/c;
+  for(let k=0;k<ITER;k++){
+    for(let j=1;j<=N;j++)for(let i=1;i<=N;i++)
+      x[IX(i,j)]=(x0[IX(i,j)]+a*(x[IX(i-1,j)]+x[IX(i+1,j)]+x[IX(i,j-1)]+x[IX(i,j+1)]))*r;
+    setBnd(b,x);
+  }
+}
+
+function diffuse(b,x,x0,diff){
+  const a=DT*diff*N*N;
+  linSolve(b,x,x0,a,1+4*a);
+}
+
+function project(vx,vy,p,div){
+  const h=1/N;
+  for(let j=1;j<=N;j++)for(let i=1;i<=N;i++){
+    div[IX(i,j)]=-0.5*h*(vx[IX(i+1,j)]-vx[IX(i-1,j)]+vy[IX(i,j+1)]-vy[IX(i,j-1)]);
+    p[IX(i,j)]=0;
+  }
+  setBnd(0,div);setBnd(0,p);
+  linSolve(0,p,div,1,4);
+  for(let j=1;j<=N;j++)for(let i=1;i<=N;i++){
+    vx[IX(i,j)]-=0.5*(p[IX(i+1,j)]-p[IX(i-1,j)])/h;
+    vy[IX(i,j)]-=0.5*(p[IX(i,j+1)]-p[IX(i,j-1)])/h;
+  }
+  setBnd(1,vx);setBnd(2,vy);
+}
+
+function advect(b,d,d0,vx,vy){
+  const dtN=DT*N;
+  for(let j=1;j<=N;j++)for(let i=1;i<=N;i++){
+    let x=i-dtN*vx[IX(i,j)], y=j-dtN*vy[IX(i,j)];
+    x=Math.max(0.5,Math.min(N+0.5,x));
+    y=Math.max(0.5,Math.min(N+0.5,y));
+    const i0=x|0,i1=i0+1,j0=y|0,j1=j0+1;
+    const s1=x-i0,s0=1-s1,t1=y-j0,t0=1-t1;
+    d[IX(i,j)]=s0*(t0*d0[IX(i0,j0)]+t1*d0[IX(i0,j1)])+s1*(t0*d0[IX(i1,j0)]+t1*d0[IX(i1,j1)]);
+  }
+  setBnd(b,d);
+}
+
+function decay(arr,k){ for(let i=0;i<arr.length;i++) arr[i]*=k; }
+
+function fluidStep(){
+  for(let i=0;i<SZ;i++){Vx[i]+=Fx[i];Vy[i]+=Fy[i];}
+  Fx.fill(0);Fy.fill(0);
+
+  diffuse(1,Vtx,Vx,VISC);
+  diffuse(2,Vty,Vy,VISC);
+  project(Vtx,Vty,Vx,Vy);
+  advect(1,Vx,Vtx,Vtx,Vty);
+  advect(2,Vy,Vty,Vtx,Vty);
+  project(Vx,Vy,Vtx,Vty);
+
+  // velocity decay: more viscous = faster damping
+  const vd=Math.max(0.80, 0.997 - VISC*380);
+  decay(Vx,vd); decay(Vy,vd);
+
+  for(let i=0;i<SZ;i++) d1[i]+=s1[i]; s1.fill(0);
+  diffuse(0,dtA,d1,DIFF); advect(0,d1,dtA,Vx,Vy); decay(d1,0.9985);
+
+  for(let i=0;i<SZ;i++) d2[i]+=s2[i]; s2.fill(0);
+  diffuse(0,dtA,d2,DIFF); advect(0,d2,dtA,Vx,Vy); decay(d2,0.9985);
+}
+
+// ════════════════════════════════════════════
+//  Colors
+// ════════════════════════════════════════════
+let col1={r:255,g:48,b:96};
+let col2={r:0,g:200,b:255};
+
+const hexToRgb = h=>{
+  const n=parseInt(h.slice(1),16);
+  return{r:(n>>16)&255,g:(n>>8)&255,b:n&255};
+};
+const rgbToHex = c=>'#'+[c.r,c.g,c.b].map(v=>v.toString(16).padStart(2,'0')).join('');
+
+// ════════════════════════════════════════════
+//  Render
+// ════════════════════════════════════════════
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const img=ctx.createImageData(N,N);
+const px=img.data;
+const BG=[4,4,14];
+
+function render(){
+  const sc=1.12;
+  const c1r=col1.r*sc,c1g=col1.g*sc,c1b=col1.b*sc;
+  const c2r=col2.r*sc,c2g=col2.g*sc,c2b=col2.b*sc;
+  let sum1=0,sum2=0;
+  for(let j=1;j<=N;j++) for(let i=1;i<=N;i++){
+    const v1=d1[IX(i,j)], v2=d2[IX(i,j)];
+    const k=(j-1)*N+(i-1);
+    px[k*4]  =Math.min(255,(BG[0]+c1r*v1+c2r*v2)|0);
+    px[k*4+1]=Math.min(255,(BG[1]+c1g*v1+c2g*v2)|0);
+    px[k*4+2]=Math.min(255,(BG[2]+c1b*v1+c2b*v2)|0);
+    px[k*4+3]=255;
+    sum1+=v1; sum2+=v2;
+  }
+  ctx.putImageData(img,0,0);
+  const total=N*N;
+  document.getElementById('fill1').style.height=Math.min(100,(sum1/total)*850)+'%';
+  document.getElementById('fill2').style.height=Math.min(100,(sum2/total)*850)+'%';
+}
+
+// ════════════════════════════════════════════
+//  Init blobs
+// ════════════════════════════════════════════
+function addBlob(dye,cx,cy,r,str){
+  for(let j=1;j<=N;j++) for(let i=1;i<=N;i++){
+    const d=Math.sqrt((i-cx)**2+(j-cy)**2);
+    if(d<r) dye[IX(i,j)]+=str*(1-d/r)**2;
+  }
+}
+
+function initFluid(){
+  d1.fill(0);d2.fill(0);Vx.fill(0);Vy.fill(0);
+  Vtx.fill(0);Vty.fill(0);s1.fill(0);s2.fill(0);Fx.fill(0);Fy.fill(0);
+  addBlob(d1,44,64,30,1.0); addBlob(d1,55,40,18,0.6);
+  addBlob(d2,84,64,30,1.0); addBlob(d2,73,88,18,0.6);
+}
+initFluid();
+
+// ════════════════════════════════════════════
+//  Interaction
+// ════════════════════════════════════════════
+let isDown=false, lastGX=0, lastGY=0;
+let tool='pour1';
+
+function toGrid(cx,cy){
+  const r=canvas.getBoundingClientRect();
+  return[
+    Math.max(2,Math.min(N-1,Math.round((cx-r.left)/r.width*N+0.5))),
+    Math.max(2,Math.min(N-1,Math.round((cy-r.top)/r.height*N+0.5)))
+  ];
+}
+
+function applyTool(gx,gy,dvx,dvy){
+  // Higher viscosity → user force is less effective at pushing fluid
+  const vf=1/(1+VISC*2500);
+  const VSCALE=250*vf, DSCALE=0.30;
+  const R=tool==='stir'?5:4;
+  for(let dj=-R;dj<=R;dj++) for(let di=-R;di<=R;di++){
+    const ni=gx+di,nj=gy+dj;
+    if(ni<1||ni>N||nj<1||nj>N) continue;
+    const dist=Math.sqrt(di*di+dj*dj);
+    if(dist>R) continue;
+    const w=(1-dist/R)**1.5;
+    Fx[IX(ni,nj)]+=dvx*VSCALE*w;
+    Fy[IX(ni,nj)]+=dvy*VSCALE*w;
+    if(tool==='pour1') s1[IX(ni,nj)]+=DSCALE*w;
+    if(tool==='pour2') s2[IX(ni,nj)]+=DSCALE*w;
+  }
+}
+
+function onDown(cx,cy){
+  isDown=true;
+  [lastGX,lastGY]=toGrid(cx,cy);
+  if(tool!=='stir') spawnRipple(cx,cy);
+}
+function onMove(cx,cy){
+  if(!isDown) return;
+  const[gx,gy]=toGrid(cx,cy);
+  const dvx=gx-lastGX, dvy=gy-lastGY;
+  if(dvx||dvy) applyTool(gx,gy,dvx,dvy);
+  lastGX=gx; lastGY=gy;
+}
+function onUp(){ isDown=false; }
+
+canvas.addEventListener('mousedown',e=>{e.preventDefault();onDown(e.clientX,e.clientY);});
+window.addEventListener('mousemove',e=>onMove(e.clientX,e.clientY));
+window.addEventListener('mouseup',()=>onUp());
+canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];onDown(t.clientX,t.clientY);},{passive:false});
+canvas.addEventListener('touchmove', e=>{e.preventDefault();const t=e.touches[0];onMove(t.clientX,t.clientY);},{passive:false});
+canvas.addEventListener('touchend',()=>onUp());
+
+// ════════════════════════════════════════════
+//  Ripple effect
+// ════════════════════════════════════════════
+function spawnRipple(x,y){
+  const el=document.createElement('div');
+  el.className='ripple-el';
+  el.style.left=x+'px'; el.style.top=y+'px';
+  el.style.color=tool==='pour1'?rgbToHex(col1):rgbToHex(col2);
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),500);
+}
+
+// ════════════════════════════════════════════
+//  Cursor
+// ════════════════════════════════════════════
+const dot=document.getElementById('cursor-dot');
+
+function updateCursor(){
+  if(tool==='stir'){
+    dot.style.width='20px'; dot.style.height='20px';
+    dot.style.background='transparent';
+    dot.style.boxShadow='0 0 0 1.5px #55667788, 0 0 10px #22334455';
+  } else {
+    const hex=rgbToHex(tool==='pour1'?col1:col2);
+    dot.style.width='13px'; dot.style.height='13px';
+    dot.style.background=hex;
+    dot.style.boxShadow=`0 0 14px ${hex}bb`;
+  }
+}
+
+window.addEventListener('mousemove',e=>{
+  dot.style.left=e.clientX+'px';
+  dot.style.top=e.clientY+'px';
+  dot.style.opacity='1';
+});
+document.addEventListener('mouseleave',()=>{ dot.style.opacity='0'; });
+
+// ════════════════════════════════════════════
+//  Tool selector
+// ════════════════════════════════════════════
+function setTool(t){
+  tool=t;
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+  updateCursor();
+}
+document.querySelectorAll('.tool-btn').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
+
+// ════════════════════════════════════════════
+//  Color pickers
+// ════════════════════════════════════════════
+function applyCol1(hex){
+  col1=hexToRgb(hex);
+  document.getElementById('dot1').style.background=hex;
+  document.getElementById('dot1').style.boxShadow=`0 0 10px ${hex}55`;
+  document.getElementById('hex1').style.color=hex;
+  document.getElementById('hex1').textContent=hex;
+  document.getElementById('ti1').style.background=hex;
+  document.getElementById('ti1').style.boxShadow=`0 0 7px ${hex}66`;
+  document.getElementById('ml1').style.color=hex;
+  document.getElementById('fill1').style.background=`linear-gradient(to top,${hex},transparent)`;
+  document.documentElement.style.setProperty('--c1',hex);
+  updateCursor();
+}
+function applyCol2(hex){
+  col2=hexToRgb(hex);
+  document.getElementById('dot2').style.background=hex;
+  document.getElementById('dot2').style.boxShadow=`0 0 10px ${hex}55`;
+  document.getElementById('hex2').style.color=hex;
+  document.getElementById('hex2').textContent=hex;
+  document.getElementById('ti2').style.background=hex;
+  document.getElementById('ti2').style.boxShadow=`0 0 7px ${hex}66`;
+  document.getElementById('ml2').style.color=hex;
+  document.getElementById('fill2').style.background=`linear-gradient(to top,${hex},transparent)`;
+  document.documentElement.style.setProperty('--c2',hex);
+  updateCursor();
+}
+
+// init visual
+applyCol1('#ff3060'); applyCol2('#00c8ff');
+
+document.getElementById('cp1').addEventListener('input', e=>applyCol1(e.target.value));
+document.getElementById('cp1').addEventListener('change',e=>applyCol1(e.target.value));
+document.getElementById('cp2').addEventListener('input', e=>applyCol2(e.target.value));
+document.getElementById('cp2').addEventListener('change',e=>applyCol2(e.target.value));
+
+// ════════════════════════════════════════════
+//  Viscosity
+// ════════════════════════════════════════════
+const VISCOSITY_TABLE=[
+  {name:'清水',  visc:0.000004},
+  {name:'薄油',  visc:0.000012},
+  {name:'牛奶',  visc:0.000030},
+  {name:'轻粘',  visc:0.000060},
+  {name:'中等',  visc:0.000100},
+  {name:'浓稠',  visc:0.000180},
+  {name:'糖浆',  visc:0.000320},
+  {name:'奶油',  visc:0.000560},
+  {name:'果冻',  visc:0.000900},
+  {name:'蜂蜜',  visc:0.001500},
+];
+
+document.getElementById('viscSlider').addEventListener('input',function(){
+  const p=VISCOSITY_TABLE[parseInt(this.value)-1];
+  VISC=p.visc;
+  document.getElementById('viscName').textContent=p.name;
+  document.getElementById('viscNum').textContent=this.value+' / 10';
+});
+
+// ════════════════════════════════════════════
+//  Buttons
+// ════════════════════════════════════════════
+document.getElementById('initBtn').addEventListener('click',initFluid);
+document.getElementById('clearBtn').addEventListener('click',()=>{
+  d1.fill(0);d2.fill(0);Vx.fill(0);Vy.fill(0);
+});
+
+// ════════════════════════════════════════════
+//  Loop
+// ════════════════════════════════════════════
+let lastTime=0;
+(function loop(ts){
+  if(ts-lastTime>=14){ fluidStep(); render(); lastTime=ts; }
+  requestAnimationFrame(loop);
+})(0);
+</script>
+</body>
+</html>
