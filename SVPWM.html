@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVPWM 新工程师教程</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface2: #1a2436;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #39ff14;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --border: #1e3a5f;
+    --va: #ff4d6d;
+    --vb: #4dffb8;
+    --vc: #4d9fff;
+    --valpha: #ffdd57;
+    --vbeta: #c77dff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    padding: 2rem;
+  }
+
+  .hero-bg {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, #0d2a4a 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 50%, #1a0d2e 0%, transparent 60%);
+  }
+
+  .hex-grid {
+    position: absolute; inset: 0; opacity: 0.07;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='104'%3E%3Cpolygon points='30,2 58,17 58,47 30,62 2,47 2,17' fill='none' stroke='%2300d4ff' stroke-width='1'/%3E%3C/svg%3E");
+    background-size: 60px 104px;
+  }
+
+  .hero-title {
+    font-size: clamp(2.5rem, 8vw, 5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--accent), var(--vbeta), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-sub {
+    font-size: 1.1rem;
+    color: var(--muted);
+    margin-top: 1rem;
+    position: relative; z-index: 1;
+    letter-spacing: 0.05em;
+  }
+
+  .hero-nav {
+    display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;
+    margin-top: 2.5rem; position: relative; z-index: 1;
+  }
+
+  .nav-chip {
+    padding: 0.5rem 1.2rem;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(255,255,255,0.03);
+    color: var(--text);
+    text-decoration: none;
+  }
+  .nav-chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.08); }
+
+  /* SECTIONS */
+  .section {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 5rem 2rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  .section-title {
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    line-height: 1.2;
+  }
+
+  .section-title span { color: var(--accent); }
+
+  p { color: #94a3b8; margin-bottom: 1rem; font-size: 1rem; }
+  strong { color: var(--text); }
+
+  /* ANALOGY CARD */
+  .analogy-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    margin: 2rem 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .analogy-card::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: linear-gradient(to bottom, var(--accent), var(--vbeta));
+  }
+  .analogy-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  .analogy-title { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem; }
+
+  /* INVERTER VISUAL */
+  .inverter-wrapper {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+  }
+
+  #inverter-svg { width: 100%; max-width: 600px; display: block; margin: 0 auto; }
+
+  .switch-state-display {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
+  .switch-col {
+    background: var(--surface2);
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .switch-col .label { font-size: 0.75rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .switch-col .phase { font-size: 1.1rem; font-weight: 700; margin: 0.25rem 0; }
+  .switch-col .state { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 700; }
+  .state-on { color: var(--accent3); }
+  .state-off { color: var(--muted); }
+
+  .vector-info {
+    text-align: center;
+    margin-top: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--accent);
+  }
+
+  /* CONTROLS */
+  .btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem; }
+  .btn {
+    padding: 0.6rem 1.4rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.2s;
+    border: none;
+  }
+  .btn-primary { background: var(--accent); color: #000; font-weight: 700; }
+  .btn-primary:hover { background: #33dcff; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.1); }
+
+  /* SPACE VECTOR CANVAS */
+  .canvas-wrapper {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin: 2rem 0;
+  }
+  canvas { display: block; margin: 0 auto; border-radius: 8px; }
+
+  .canvas-controls {
+    display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin-top: 1rem;
+  }
+  .slider-group { display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 180px; }
+  .slider-group label { font-size: 0.75rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  input[type=range] {
+    width: 100%; accent-color: var(--accent);
+    background: var(--surface2); border-radius: 4px; height: 4px;
+  }
+
+  .info-pills {
+    display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;
+  }
+  .pill {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.9rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+  }
+  .pill span { color: var(--accent); font-weight: 700; }
+
+  /* TIMING DIAGRAM */
+  #timing-canvas { width: 100%; border-radius: 8px; }
+
+  /* STEP BOXES */
+  .steps { display: flex; flex-direction: column; gap: 1.5rem; margin: 2rem 0; }
+  .step {
+    display: flex; gap: 1.5rem; align-items: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    transition: border-color 0.2s;
+  }
+  .step:hover { border-color: var(--accent); }
+  .step-num {
+    flex-shrink: 0;
+    width: 2.5rem; height: 2.5rem;
+    background: var(--accent);
+    color: #000;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .step-content h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+  .step-content p { margin: 0; font-size: 0.9rem; }
+
+  /* FORMULA BLOCK */
+  .formula-block {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: #c4e1ff;
+    overflow-x: auto;
+  }
+  .formula-block .comment { color: var(--muted); }
+  .formula-block .keyword { color: var(--accent2); }
+  .formula-block .num { color: var(--accent3); }
+  .formula-block .var { color: var(--valpha); }
+
+  /* CODE BLOCK */
+  .code-block {
+    background: #080d14;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.8;
+    overflow-x: auto;
+    color: #abb2bf;
+  }
+  .code-block .c-comment { color: #5c6370; }
+  .code-block .c-keyword { color: #c678dd; }
+  .code-block .c-type { color: #e5c07b; }
+  .code-block .c-num { color: #d19a66; }
+  .code-block .c-var { color: #e06c75; }
+  .code-block .c-fn { color: #61afef; }
+  .code-block .c-str { color: #98c379; }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
+  th {
+    background: var(--surface2);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    padding: 0.75rem 1rem;
+    text-align: left;
+  }
+  td {
+    padding: 0.65rem 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+    color: #94a3b8;
+  }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .highlight-row td { color: var(--accent3); font-weight: 600; }
+
+  /* SECTOR BADGE */
+  .sector-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  /* COMPARISON */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 2rem 0;
+  }
+  .compare-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+  }
+  .compare-card h3 { font-size: 1rem; margin-bottom: 0.75rem; }
+  .compare-card ul { list-style: none; }
+  .compare-card li { padding: 0.35rem 0; font-size: 0.9rem; color: #94a3b8; }
+  .compare-card li::before { content: '→ '; color: var(--accent); }
+  .compare-card.winner { border-color: var(--accent3); }
+  .compare-card.winner h3 { color: var(--accent3); }
+
+  /* SCROLL REVEAL */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s, transform 0.6s; }
+  .revealed { opacity: 1; transform: none; }
+
+  /* FOOTER */
+  footer {
+    text-align: center;
+    padding: 3rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-bg"></div>
+  <div class="hex-grid"></div>
+  <div class="hero-title">SVPWM</div>
+  <div style="font-size:1.3rem;color:#64748b;margin-top:0.25rem;position:relative;z-index:1;font-family:'JetBrains Mono',monospace">Space Vector PWM</div>
+  <div class="hero-sub">空间矢量脉宽调制 · 新工程师完整教程</div>
+  <nav class="hero-nav">
+    <a class="nav-chip" href="#why">为什么需要它</a>
+    <a class="nav-chip" href="#inverter">逆变器基础</a>
+    <a class="nav-chip" href="#space">空间矢量</a>
+    <a class="nav-chip" href="#synthesis">矢量合成</a>
+    <a class="nav-chip" href="#algorithm">实现步骤</a>
+    <a class="nav-chip" href="#timing">PWM波形</a>
+    <a class="nav-chip" href="#code">代码实现</a>
+  </nav>
+</div>
+
+<!-- SECTION 1: WHY -->
+<section class="section reveal" id="why">
+  <div class="section-label">// 01 · 动机</div>
+  <h2 class="section-title">为什么不用普通的 <span>SPWM</span>？</h2>
+
+  <div class="analogy-card">
+    <div class="analogy-icon">🎯</div>
+    <div class="analogy-title">一句话理解SVPWM的目标</div>
+    <p style="margin:0;color:var(--text)">
+      给电机施加一个<strong>任意方向、任意幅值</strong>的旋转电压矢量，同时把直流母线电压用到<strong>极致</strong>。
+    </p>
+  </div>
+
+  <p>在普通SPWM中，三路独立的正弦波各自调制，互相不知道对方的状态。而电机实际需要的是一个<strong>旋转的合成电压矢量</strong>——SVPWM正是从这个整体视角出发设计的。</p>
+
+  <div class="compare-grid">
+    <div class="compare-card">
+      <h3>😐 SPWM</h3>
+      <ul>
+        <li>三路独立调制</li>
+        <li>直流利用率：<strong>50%</strong></li>
+        <li>谐波稍高</li>
+        <li>实现简单</li>
+      </ul>
+    </div>
+    <div class="compare-card winner">
+      <h3>✅ SVPWM</h3>
+      <ul>
+        <li>以矢量整体考量</li>
+        <li>直流利用率：<strong>57.7%</strong></li>
+        <li>谐波更低</li>
+        <li>数字实现友好</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="analogy-card" style="border-left-color: var(--accent2);">
+    <div class="analogy-icon">🔦</div>
+    <div class="analogy-title">比喻：手电筒打光</div>
+    <p style="margin:0;color:#94a3b8">
+      想象你要用手电筒在墙上打出一个指向任意方向的光斑。<br>
+      SPWM：三个手电筒分别独立摆动，光斑是三者叠加的意外结果。<br>
+      SVPWM：你明确知道要把光斑打到哪里，然后计算三个手电筒分别开多长时间来精确合成。
+    </p>
+  </div>
+</section>
+
+<!-- SECTION 2: INVERTER -->
+<section class="section reveal" id="inverter">
+  <div class="section-label">// 02 · 基础</div>
+  <h2 class="section-title">三相逆变器有多少种<span>开关状态</span>？</h2>
+
+  <p>三相逆变器有三个桥臂，每个桥臂上管(S_up)和下管(S_down)互补导通（不能同时开，防止直通）。所以每个桥臂只有<strong>0或1</strong>两种状态，三个桥臂共有 <strong>2³ = 8种</strong>组合。</p>
+
+  <div class="inverter-wrapper">
+    <svg id="inverter-svg" viewBox="0 0 560 280" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- DC bus -->
+      <line x1="40" y1="40" x2="520" y2="40" stroke="#1e3a5f" stroke-width="2"/>
+      <line x1="40" y1="240" x2="520" y2="240" stroke="#1e3a5f" stroke-width="2"/>
+      <text x="18" y="44" fill="#00d4ff" font-size="12" font-family="JetBrains Mono">+</text>
+      <text x="18" y="244" fill="#ff6b35" font-size="12" font-family="JetBrains Mono">−</text>
+      <text x="18" y="145" fill="#64748b" font-size="10" font-family="JetBrains Mono">Vdc</text>
+      <line x1="30" y1="55" x2="30" y2="225" stroke="#64748b" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="490" y="34" fill="#64748b" font-size="10" font-family="JetBrains Mono">P</text>
+      <text x="490" y="252" fill="#64748b" font-size="10" font-family="JetBrains Mono">N</text>
+
+      <!-- Phase A -->
+      <line x1="160" y1="40" x2="160" y2="240" stroke="#1e3a5f" stroke-width="1.5"/>
+      <!-- S_a_up -->
+      <rect id="sa-up" x="140" y="55" width="40" height="30" rx="6" fill="#1a2436" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="160" y="75" fill="#64748b" font-size="10" text-anchor="middle" font-family="JetBrains Mono">Sa↑</text>
+      <!-- S_a_down -->
+      <rect id="sa-dn" x="140" y="185" width="40" height="30" rx="6" fill="#1a2436" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="160" y="205" fill="#64748b" font-size="10" text-anchor="middle" font-family="JetBrains Mono">Sa↓</text>
+      <!-- midpoint -->
+      <circle id="pa-dot" cx="160" cy="140" r="5" fill="#ff4d6d" opacity="0.5"/>
+      <line x1="160" y1="140" x2="220" y2="140" stroke="#ff4d6d" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>
+      <text x="165" y="133" fill="#ff4d6d" font-size="11" font-family="JetBrains Mono">A</text>
+
+      <!-- Phase B -->
+      <line x1="280" y1="40" x2="280" y2="240" stroke="#1e3a5f" stroke-width="1.5"/>
+      <rect id="sb-up" x="260" y="55" width="40" height="30" rx="6" fill="#1a2436" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="280" y="75" fill="#64748b" font-size="10" text-anchor="middle" font-family="JetBrains Mono">Sb↑</text>
+      <rect id="sb-dn" x="260" y="185" width="40" height="30" rx="6" fill="#1a2436" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="280" y="205" fill="#64748b" font-size="10" text-anchor="middle" font-family="JetBrains Mono">Sb↓</text>
+      <circle id="pb-dot" cx="280" cy="140" r="5" fill="#4dffb8" opacity="0.5"/>
+      <line x1="280" y1="140" x2="220" y2="140" stroke="#4dffb8" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>
+      <text x="285" y="133" fill="#4dffb8" font-size="11" font-family="JetBrains Mono">B</text>
+
+      <!-- Phase C -->
+      <line x1="400" y1="40" x2="400" y2="240" stroke="#1e3a5f" stroke-width="1.5"/>
+      <rect id="sc-up" x="380" y="55" width="40" height="30" rx="6" fill="#1a2436" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="400" y="75" fill="#64748b" font-size="10" text-anchor="middle" font-family="JetBrains Mono">Sc↑</text>
+      <rect id="sc-dn" x="380" y="185" width="40" height="30" rx="6" fill="#1a2436" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="400" y="205" fill="#64748b" font-size="10" text-anchor="middle" font-family="JetBrains Mono">Sc↓</text>
+      <circle id="pc-dot" cx="400" cy="140" r="5" fill="#4d9fff" opacity="0.5"/>
+      <line x1="400" y1="140" x2="460" y2="140" stroke="#4d9fff" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>
+      <text x="405" y="133" fill="#4d9fff" font-size="11" font-family="JetBrains Mono">C</text>
+
+      <!-- Motor symbol -->
+      <circle cx="460" cy="140" r="28" stroke="#1e3a5f" stroke-width="1.5"/>
+      <text x="460" y="145" fill="#64748b" font-size="14" text-anchor="middle" font-family="JetBrains Mono">M</text>
+    </svg>
+
+    <div class="switch-state-display">
+      <div class="switch-col">
+        <div class="label">PHASE A</div>
+        <div class="phase" style="color:var(--va)">A相</div>
+        <div class="state" id="sa-state">1</div>
+        <div class="label" id="sa-desc">上管导通</div>
+      </div>
+      <div class="switch-col">
+        <div class="label">PHASE B</div>
+        <div class="phase" style="color:var(--vb)">B相</div>
+        <div class="state" id="sb-state">1</div>
+        <div class="label" id="sb-desc">上管导通</div>
+      </div>
+      <div class="switch-col">
+        <div class="label">PHASE C</div>
+        <div class="phase" style="color:var(--vc)">C相</div>
+        <div class="state" id="sc-state">0</div>
+        <div class="label" id="sc-desc">下管导通</div>
+      </div>
+    </div>
+
+    <div class="vector-info" id="vector-info">当前矢量: V4 (100) — 非零矢量</div>
+
+    <div class="btn-row" style="justify-content:center;margin-top:1rem">
+      <button class="btn btn-secondary" onclick="prevVector()">◀ 上一个</button>
+      <button class="btn btn-primary" id="auto-btn" onclick="toggleAuto()">▶ 自动播放</button>
+      <button class="btn btn-secondary" onclick="nextVector()">下一个 ▶</button>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>矢量</th><th>Sa Sb Sc</th><th>类型</th><th>含义</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>V₀</td><td><code>0 0 0</code></td><td>零矢量</td><td>三相全下管，输出为零</td></tr>
+      <tr><td>V₁</td><td><code>1 0 0</code></td><td>有效矢量</td><td>指向0°</td></tr>
+      <tr><td>V₂</td><td><code>1 1 0</code></td><td>有效矢量</td><td>指向60°</td></tr>
+      <tr><td>V₃</td><td><code>0 1 0</code></td><td>有效矢量</td><td>指向120°</td></tr>
+      <tr><td>V₄</td><td><code>0 1 1</code></td><td>有效矢量</td><td>指向180°</td></tr>
+      <tr><td>V₅</td><td><code>0 0 1</code></td><td>有效矢量</td><td>指向240°</td></tr>
+      <tr><td>V₆</td><td><code>1 0 1</code></td><td>有效矢量</td><td>指向300°</td></tr>
+      <tr class="highlight-row"><td>V₇</td><td><code>1 1 1</code></td><td>零矢量</td><td>三相全上管，输出为零</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- SECTION 3: SPACE VECTOR -->
+<section class="section reveal" id="space">
+  <div class="section-label">// 03 · 核心概念</div>
+  <h2 class="section-title">六边形与<span>空间矢量图</span></h2>
+
+  <p>把8个开关状态对应的电压矢量画到二维平面（αβ坐标系）上，会得到一个<strong>正六边形</strong>。6个非零矢量均匀分布，把平面分成<strong>6个扇区</strong>。</p>
+
+  <div class="analogy-card">
+    <div class="analogy-icon">🕰️</div>
+    <div class="analogy-title">比喻：时钟的时针</div>
+    <p style="margin:0;color:#94a3b8">
+      6个有效矢量就像时钟的6个方向（12点、2点、4点、6点、8点、10点）。
+      你想要时针指向1点30分，但只能用12点和2点的组合——靠近哪个方向就让它多作用一段时间，这就是<strong>时间平均合成</strong>的思路。
+    </p>
+  </div>
+
+  <div class="canvas-wrapper">
+    <canvas id="sv-canvas" width="480" height="480" style="max-width:100%"></canvas>
+    <div class="canvas-controls">
+      <div class="slider-group">
+        <label>参考矢量角度 θ = <span id="angle-val">30</span>°</label>
+        <input type="range" id="angle-slider" min="0" max="359" value="30" oninput="updateSV()">
+      </div>
+      <div class="slider-group">
+        <label>调制比 m = <span id="mod-val">0.8</span></label>
+        <input type="range" id="mod-slider" min="10" max="100" value="80" oninput="updateSV()">
+      </div>
+    </div>
+    <div class="info-pills">
+      <div class="pill">扇区: <span id="sv-sector">I</span></div>
+      <div class="pill">T₁: <span id="sv-t1">0.00</span>·Ts</div>
+      <div class="pill">T₂: <span id="sv-t2">0.00</span>·Ts</div>
+      <div class="pill">T₀: <span id="sv-t0">0.00</span>·Ts</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="rotate-btn" onclick="toggleRotate()">▶ 自动旋转</button>
+    </div>
+  </div>
+
+  <p>旋转调节角度，观察：<strong>参考矢量（白色箭头）</strong>如何被相邻两个基矢量（彩色箭头）分解，以及<strong>零矢量时间</strong>如何随着幅值变化。</p>
+</section>
+
+<!-- SECTION 4: SYNTHESIS -->
+<section class="section reveal" id="synthesis">
+  <div class="section-label">// 04 · 数学</div>
+  <h2 class="section-title">Clark变换与<span>时间计算</span></h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>Clarke变换：三相 → αβ坐标</h3>
+        <p>将三相电压（120°互差）投影到两轴正交坐标系，去掉冗余维度。</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>判断扇区：Vref在哪个扇区？</h3>
+        <p>根据αβ分量，用位运算快速确定扇区号（1~6）。</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>计算作用时间：T₁, T₂, T₀</h3>
+        <p>利用正弦定理，算出相邻两个基矢量各需作用多少时间。</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h3>生成比较值：写入定时器寄存器</h3>
+        <p>按七段式对称排列，计算三个通道的计数器比较值。</p>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin:2rem 0 1rem;color:var(--accent)">Step 1：Clarke 变换</h3>
+
+  <div class="formula-block">
+<span class="comment">// 等功率变换（幅值×√(2/3)）</span>
+<span class="var">Vα</span> = √(2/3) × [<span class="var">Va</span> − <span class="num">0.5</span>×<span class="var">Vb</span> − <span class="num">0.5</span>×<span class="var">Vc</span>]
+<span class="var">Vβ</span> = √(2/3) × [        (√3/2)×<span class="var">Vb</span> − (√3/2)×<span class="var">Vc</span>]
+
+<span class="comment">// 工程中常用简化幅值不变形式：</span>
+<span class="var">Vα</span> = <span class="var">Va</span>
+<span class="var">Vβ</span> = (<span class="var">Va</span> + <span class="num">2</span>×<span class="var">Vb</span>) / √3
+  </div>
+
+  <h3 style="margin:2rem 0 1rem;color:var(--accent)">Step 2：扇区判断（位运算法）</h3>
+
+  <div class="formula-block">
+<span class="comment">// 定义三个辅助量</span>
+<span class="var">U1</span> = <span class="var">Vβ</span>
+<span class="var">U2</span> = −<span class="var">Vβ</span>/2 + (√3/2)×<span class="var">Vα</span>
+<span class="var">U3</span> = −<span class="var">Vβ</span>/2 − (√3/2)×<span class="var">Vα</span>
+
+<span class="comment">// 用符号位编码</span>
+<span class="keyword">A</span> = (U1 > 0) ? 1 : 0
+<span class="keyword">B</span> = (U2 > 0) ? 1 : 0
+<span class="keyword">C</span> = (U3 > 0) ? 1 : 0
+N = <span class="num">4</span>×C + <span class="num">2</span>×B + A
+
+<span class="comment">// N → 扇区 对照表:</span>
+<span class="comment">// N=3→I,  N=1→II,  N=5→III</span>
+<span class="comment">// N=4→IV, N=6→V,   N=2→VI</span>
+  </div>
+
+  <h3 style="margin:2rem 0 1rem;color:var(--accent)">Step 3：作用时间计算（以扇区I为例）</h3>
+
+  <div class="formula-block">
+<span class="comment">// 设 k = √3 × Ts / Vdc</span>
+<span class="comment">// 扇区I中，相邻矢量为 V1(100) 和 V2(110)</span>
+
+T1 = k × ( (√3/2)×<span class="var">Vα</span> − <span class="var">Vβ</span>/2 )   <span class="comment">← V1方向分量</span>
+T2 = k ×               <span class="var">Vβ</span>             <span class="comment">← V2方向分量</span>
+T0 = Ts − T1 − T2                   <span class="comment">← 零矢量时间</span>
+
+<span class="comment">// 若 T1+T2 > Ts（过调制），需归一化：</span>
+<span class="keyword">if</span> (T1+T2 > Ts): T1 = T1×Ts/(T1+T2); T2 = T2×Ts/(T1+T2)
+  </div>
+
+  <p>其他扇区的公式通过坐标旋转得到，结构完全一样，只是 Vα、Vβ 的系数正负不同。实现时通常统一用查表或 if-else 处理各扇区。</p>
+</section>
+
+<!-- SECTION 5: ALGORITHM -->
+<section class="section reveal" id="algorithm">
+  <div class="section-label">// 05 · 七段式</div>
+  <h2 class="section-title">PWM 波形的<span>对称排列</span></h2>
+
+  <p>知道了 T1, T2, T0 之后，还需要决定这一个 PWM 周期内开关管的具体<strong>开关顺序</strong>。标准做法是<strong>七段式（Symmetric 7-segment）</strong>：</p>
+
+  <div class="analogy-card" style="border-left-color:var(--accent3)">
+    <div class="analogy-icon">🎵</div>
+    <div class="analogy-title">比喻：三明治结构</div>
+    <p style="margin:0;color:#94a3b8">
+      七段 = <strong>前半段</strong>（V₀ → V_x → V_{x+1} → V₇）+ <strong>后半段</strong>（镜像对称）<br>
+      结果：每个周期内每相只发生<strong>2次</strong>开关动作，而且波形关于中点对称，谐波最低。
+    </p>
+  </div>
+
+  <p>以<strong>扇区I</strong>（Sa=1先拉高）为例，七段排列如下：</p>
+
+  <div class="canvas-wrapper">
+    <canvas id="timing-canvas" width="720" height="280" style="max-width:100%"></canvas>
+    <div class="canvas-controls" style="margin-top:1rem">
+      <div class="slider-group">
+        <label>T₁ 比例: <span id="t1-pct">35</span>%</label>
+        <input type="range" id="t1-slider" min="5" max="80" value="35" oninput="updateTiming()">
+      </div>
+      <div class="slider-group">
+        <label>T₂ 比例: <span id="t2-pct">35</span>%</label>
+        <input type="range" id="t2-slider" min="5" max="80" value="35" oninput="updateTiming()">
+      </div>
+    </div>
+    <div class="info-pills" id="timing-pills">
+      <div class="pill">Tcma: <span id="tcma">0.0</span>%</div>
+      <div class="pill">Tcmb: <span id="tcmb">0.0</span>%</div>
+      <div class="pill">Tcmc: <span id="tcmc">0.0</span>%</div>
+    </div>
+  </div>
+
+  <p>三个比较值（Tcma, Tcmb, Tcmc）直接写入定时器的捕获比较寄存器即可，DSP/MCU内部的<strong>上下计数器</strong>会自动产生对称PWM。</p>
+
+  <div class="formula-block">
+<span class="comment">// 扇区I 比较值（以计数器周期归一化）</span>
+Tcma = T0/4
+Tcmb = T0/4 + T1/2
+Tcmc = T0/4 + T1/2 + T2/2
+
+<span class="comment">// 不同扇区的A/B/C分配不同，查表确定</span>
+  </div>
+</section>
+
+<!-- SECTION 6: CODE -->
+<section class="section reveal" id="code">
+  <div class="section-label">// 06 · 实现</div>
+  <h2 class="section-title">完整 <span>C代码</span> 实现</h2>
+
+  <p>以下是可直接用于 DSP（TMS320F28xxx）或 STM32 的 SVPWM C 函数，注释详尽：</p>
+
+  <div class="code-block"><span class="c-comment">/* ============================================================
+ * svpwm.c  ·  SVPWM 空间矢量调制
+ * 输入:  Valpha, Vbeta (αβ坐标系电压，已归一化到 Vdc)
+ * 输出:  Tcma, Tcmb, Tcmc (定时器比较值，归一化到 0~1)
+ * ===========================================================*/</span>
+
+<span class="c-keyword">#include</span> <span class="c-str">&lt;math.h&gt;</span>
+
+<span class="c-keyword">#define</span> SQRT3     <span class="c-num">1.732050808f</span>
+<span class="c-keyword">#define</span> SQRT3_2   <span class="c-num">0.866025404f</span>
+<span class="c-keyword">#define</span> ONE_OVER_SQRT3  <span class="c-num">0.577350269f</span>
+
+<span class="c-type">typedef struct</span> {
+    <span class="c-type">float</span> <span class="c-var">Tcma</span>, <span class="c-var">Tcmb</span>, <span class="c-var">Tcmc</span>;  <span class="c-comment">// 三相比较值 [0,1]</span>
+    <span class="c-type">int</span>   <span class="c-var">sector</span>;               <span class="c-comment">// 当前扇区 1~6</span>
+} SVPWM_Out;
+
+SVPWM_Out <span class="c-fn">SVPWM_Calc</span>(<span class="c-type">float</span> <span class="c-var">Va</span>, <span class="c-type">float</span> <span class="c-var">Vb</span>) {
+    SVPWM_Out <span class="c-var">out</span>;
+    <span class="c-type">float</span> <span class="c-var">T1</span>, <span class="c-var">T2</span>, <span class="c-var">T0</span>;
+    <span class="c-type">float</span> <span class="c-var">X</span>, <span class="c-var">Y</span>, <span class="c-var">Z</span>;
+
+    <span class="c-comment">// --- Step 1: 计算三个辅助量 ---</span>
+    <span class="c-type">float</span> <span class="c-var">U1</span> =  <span class="c-var">Vb</span>;
+    <span class="c-type">float</span> <span class="c-var">U2</span> = -<span class="c-var">Vb</span> * <span class="c-num">0.5f</span> + SQRT3_2 * <span class="c-var">Va</span>;
+    <span class="c-type">float</span> <span class="c-var">U3</span> = -<span class="c-var">Vb</span> * <span class="c-num">0.5f</span> - SQRT3_2 * <span class="c-var">Va</span>;
+
+    <span class="c-comment">// --- Step 2: 扇区判断（位运算） ---</span>
+    <span class="c-type">int</span> <span class="c-var">A</span> = (<span class="c-var">U1</span> > <span class="c-num">0</span>) ? <span class="c-num">1</span> : <span class="c-num">0</span>;
+    <span class="c-type">int</span> <span class="c-var">B</span> = (<span class="c-var">U2</span> > <span class="c-num">0</span>) ? <span class="c-num">1</span> : <span class="c-num">0</span>;
+    <span class="c-type">int</span> <span class="c-var">C</span> = (<span class="c-var">U3</span> > <span class="c-num">0</span>) ? <span class="c-num">1</span> : <span class="c-num">0</span>;
+    <span class="c-type">int</span> <span class="c-var">N</span> = <span class="c-num">4</span>*<span class="c-var">C</span> + <span class="c-num">2</span>*<span class="c-var">B</span> + <span class="c-var">A</span>;
+    <span class="c-type">int</span> sector_map[] = {<span class="c-num">0</span>,<span class="c-num">2</span>,<span class="c-num">6</span>,<span class="c-num">1</span>,<span class="c-num">4</span>,<span class="c-num">3</span>,<span class="c-num">5</span>,<span class="c-num">0</span>};
+    out.sector = sector_map[<span class="c-var">N</span>];
+
+    <span class="c-comment">// --- Step 3: 计算 X, Y, Z（通用时间基) ---</span>
+    <span class="c-var">X</span> =  SQRT3 * <span class="c-var">Vb</span>;
+    <span class="c-var">Y</span> =  SQRT3_2 * <span class="c-var">Va</span> + <span class="c-var">Vb</span> * <span class="c-num">0.5f</span>;  <span class="c-comment">// 即 (√3/2·Vα + Vβ/2)</span>
+    <span class="c-var">Z</span> = -SQRT3_2 * <span class="c-var">Va</span> + <span class="c-var">Vb</span> * <span class="c-num">0.5f</span>;
+
+    <span class="c-comment">// --- Step 4: 按扇区分配 T1, T2 ---</span>
+    <span class="c-keyword">switch</span> (out.sector) {
+        <span class="c-keyword">case</span> <span class="c-num">1</span>: <span class="c-var">T1</span>=  <span class="c-var">Y</span>; <span class="c-var">T2</span>=  <span class="c-var">X</span>; <span class="c-keyword">break</span>;
+        <span class="c-keyword">case</span> <span class="c-num">2</span>: <span class="c-var">T1</span>= -<span class="c-var">Z</span>; <span class="c-var">T2</span>= -<span class="c-var">Y</span>; <span class="c-keyword">break</span>;
+        <span class="c-keyword">case</span> <span class="c-num">3</span>: <span class="c-var">T1</span>=  <span class="c-var">Z</span>; <span class="c-var">T2</span>=  <span class="c-var">X</span>; <span class="c-keyword">break</span>;  <span class="c-comment">// 注：此处有符号约定</span>
+        <span class="c-keyword">case</span> <span class="c-num">4</span>: <span class="c-var">T1</span>= -<span class="c-var">X</span>; <span class="c-var">T2</span>= -<span class="c-var">Z</span>; <span class="c-keyword">break</span>;
+        <span class="c-keyword">case</span> <span class="c-num">5</span>: <span class="c-var">T1</span>=  <span class="c-var">X</span>; <span class="c-var">T2</span>=  <span class="c-var">Y</span>; <span class="c-keyword">break</span>;
+        <span class="c-keyword">case</span> <span class="c-num">6</span>: <span class="c-var">T1</span>= -<span class="c-var">Y</span>; <span class="c-var">T2</span>= -<span class="c-var">X</span>; <span class="c-keyword">break</span>;
+        <span class="c-keyword">default</span>: <span class="c-var">T1</span>=<span class="c-var">T2</span>=<span class="c-num">0</span>;
+    }
+
+    <span class="c-comment">// --- Step 5: 过调制限幅 ---</span>
+    <span class="c-keyword">if</span> (<span class="c-var">T1</span> + <span class="c-var">T2</span> > <span class="c-num">1.0f</span>) {
+        <span class="c-type">float</span> <span class="c-var">k</span> = <span class="c-num">1.0f</span> / (<span class="c-var">T1</span> + <span class="c-var">T2</span>);
+        <span class="c-var">T1</span> *= <span class="c-var">k</span>; <span class="c-var">T2</span> *= <span class="c-var">k</span>;
+    }
+    <span class="c-var">T0</span> = (<span class="c-num">1.0f</span> - <span class="c-var">T1</span> - <span class="c-var">T2</span>) * <span class="c-num">0.5f</span>;   <span class="c-comment">// V0 和 V7 各占一半</span>
+
+    <span class="c-comment">// --- Step 6: 七段式比较值 ---</span>
+    <span class="c-type">float</span> <span class="c-var">Ta</span>=<span class="c-num">0</span>, <span class="c-var">Tb</span>=<span class="c-num">0</span>, <span class="c-var">Tc</span>=<span class="c-num">0</span>;
+    <span class="c-keyword">switch</span> (out.sector) {
+        <span class="c-keyword">case</span> <span class="c-num">1</span>: <span class="c-var">Ta</span>=T0;       <span class="c-var">Tb</span>=T0+T1;    <span class="c-var">Tc</span>=T0+T1+T2; <span class="c-keyword">break</span>;
+        <span class="c-keyword">case</span> <span class="c-num">2</span>: <span class="c-var">Ta</span>=T0+T2;   <span class="c-var">Tb</span>=T0;       <span class="c-var">Tc</span>=T0+T1+T2; <span class="c-keyword">break</span>;
+        <span class="c-keyword">case</span> <span class="c-num">3</span>: <span class="c-var">Ta</span>=T0+T1+T2; <span class="c-var">Tb</span>=T0;      <span class="c-var">Tc</span>=T0+T1;    <span class="c-keyword">break</span>;
+        <span class="c-keyword">case</span> <span class="c-num">4</span>: <span class="c-var">Ta</span>=T0+T1+T2; <span class="c-var">Tb</span>=T0+T1;   <span class="c-var">Tc</span>=T0;       <span class="c-keyword">break</span>;
+        <span class="c-keyword">case</span> <span class="c-num">5</span>: <span class="c-var">Ta</span>=T0+T1;    <span class="c-var">Tb</span>=T0+T1+T2; <span class="c-var">Tc</span>=T0;      <span class="c-keyword">break</span>;
+        <span class="c-keyword">case</span> <span class="c-num">6</span>: <span class="c-var">Ta</span>=T0;       <span class="c-var">Tb</span>=T0+T1+T2; <span class="c-var">Tc</span>=T0+T1;   <span class="c-keyword">break</span>;
+    }
+    out.Tcma = <span class="c-num">0.5f</span> - <span class="c-var">Ta</span>;  <span class="c-comment">// 转换为对称中心格式</span>
+    out.Tcmb = <span class="c-num">0.5f</span> - <span class="c-var">Tb</span>;
+    out.Tcmc = <span class="c-num">0.5f</span> - <span class="c-var">Tc</span>;
+
+    <span class="c-keyword">return</span> out;
+}</div>
+
+  <div class="analogy-card" style="border-left-color:var(--accent2)">
+    <div class="analogy-icon">⚠️</div>
+    <div class="analogy-title">新工程师常见坑</div>
+    <ul style="color:#94a3b8;padding-left:1.2rem;margin:0">
+      <li style="margin-bottom:0.4rem">Vα Vβ 的<strong>归一化基准</strong>要统一（是 Vdc 还是 Vdc/2？）</li>
+      <li style="margin-bottom:0.4rem"><strong>过调制</strong>（T1+T2>Ts）不处理会导致输出削波失真</li>
+      <li style="margin-bottom:0.4rem">死区时间会造成电压误差，高精度场合需<strong>死区补偿</strong></li>
+      <li style="margin-bottom:0.4rem">扇区判断边界点（θ = 0°, 60°...）要处理好，防止抖动</li>
+      <li>MCU 定时器计数方向（上下计数）影响比较值的具体写法</li>
+    </ul>
+  </div>
+</section>
+
+<!-- SECTION 7: SUMMARY -->
+<section class="section reveal">
+  <div class="section-label">// 07 · 小结</div>
+  <h2 class="section-title">一张图理解整个<span>流程</span></h2>
+
+  <div class="formula-block" style="line-height:2.2;font-size:0.85rem">
+<span class="comment">┌─────────────────────────────────────────────────────────┐</span>
+<span class="comment">│                    SVPWM 完整数据流                       │</span>
+<span class="comment">└─────────────────────────────────────────────────────────┘</span>
+
+  电流环/速度环
+       ↓
+  Vd, Vq (旋转坐标系)
+       ↓ <span class="keyword">Park逆变换</span>
+  Vα, Vβ (静止坐标系)
+       ↓ <span class="keyword">扇区判断</span>
+  Sector (1~6)
+       ↓ <span class="keyword">时间计算</span>
+  T1, T2, T0
+       ↓ <span class="keyword">七段式排列</span>
+  Tcma, Tcmb, Tcmc
+       ↓ <span class="keyword">写入定时器</span>
+  PWM 三路互补信号 → 驱动IC → IGBT/MOSFET → 电机
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>概念</th><th>关键点</th><th>常见问题</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>开关状态</td><td>8个（含2个零矢量）</td><td>混淆 V0 和 V7 的区别</td></tr>
+      <tr><td>扇区判断</td><td>用位运算，速度快</td><td>忘记处理 N=0 异常</td></tr>
+      <tr><td>时间计算</td><td>T1+T2 ≤ Ts</td><td>过调制不做归一化</td></tr>
+      <tr><td>七段式</td><td>每相 2 次开关/周期</td><td>比较值方向搞反</td></tr>
+      <tr class="highlight-row"><td>直流利用率</td><td>1/√3 ≈ 57.7%</td><td>——</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  SVPWM 新工程师教程 · 所有可视化实时计算 · 基于 Canvas 2D API
+</footer>
+
+<script>
+// ============================================================
+// INVERTER ANIMATION
+// ============================================================
+const vectors = [
+  { name:'V₀ (000)', sa:0, sb:0, sc:0, type:'零矢量', color:'#64748b' },
+  { name:'V₁ (100)', sa:1, sb:0, sc:0, type:'有效矢量 · 0°', color:'#ff4d6d' },
+  { name:'V₂ (110)', sa:1, sb:1, sc:0, type:'有效矢量 · 60°', color:'#ffaa00' },
+  { name:'V₃ (010)', sa:0, sb:1, sc:0, type:'有效矢量 · 120°', color:'#4dffb8' },
+  { name:'V₄ (011)', sa:0, sb:1, sc:1, type:'有效矢量 · 180°', color:'#4d9fff' },
+  { name:'V₅ (001)', sa:0, sb:0, sc:1, type:'有效矢量 · 240°', color:'#b84dff' },
+  { name:'V₆ (101)', sa:1, sb:0, sc:1, type:'有效矢量 · 300°', color:'#ff6b35' },
+  { name:'V₇ (111)', sa:1, sb:1, sc:1, type:'零矢量', color:'#64748b' },
+];
+let vIdx = 1, autoTimer = null;
+
+function updateInverter() {
+  const v = vectors[vIdx];
+  const states = [v.sa, v.sb, v.sc];
+  const ids = ['sa','sb','sc'];
+  const colors = ['#ff4d6d','#4dffb8','#4d9fff'];
+  ids.forEach((id,i) => {
+    const st = document.getElementById(`${id}-state`);
+    const desc = document.getElementById(`${id}-desc`);
+    const upRect = document.getElementById(`${id}-up`);
+    const dnRect = document.getElementById(`${id}-dn`);
+    const isOn = states[i] === 1;
+    st.textContent = isOn ? '1' : '0';
+    st.className = 'state ' + (isOn ? 'state-on' : 'state-off');
+    desc.textContent = isOn ? '上管导通' : '下管导通';
+    upRect.style.fill = isOn ? `${colors[i]}33` : '#1a2436';
+    upRect.style.stroke = isOn ? colors[i] : '#1e3a5f';
+    dnRect.style.fill = isOn ? '#1a2436' : `${colors[i]}33`;
+    dnRect.style.stroke = isOn ? '#1e3a5f' : colors[i];
+  });
+  document.getElementById('vector-info').textContent = `当前矢量: ${v.name} — ${v.type}`;
+  document.getElementById('vector-info').style.color = v.color;
+}
+
+function nextVector() { vIdx = (vIdx + 1) % 8; updateInverter(); }
+function prevVector() { vIdx = (vIdx + 7) % 8; updateInverter(); }
+function toggleAuto() {
+  const btn = document.getElementById('auto-btn');
+  if (autoTimer) { clearInterval(autoTimer); autoTimer = null; btn.textContent = '▶ 自动播放'; }
+  else { autoTimer = setInterval(nextVector, 800); btn.textContent = '⏹ 停止'; }
+}
+updateInverter();
+
+// ============================================================
+// SPACE VECTOR CANVAS
+// ============================================================
+const svCanvas = document.getElementById('sv-canvas');
+const svCtx = svCanvas.getContext('2d');
+let svAngle = 30, svMod = 0.8, svRotating = false, svRotTimer = null;
+
+const vectorAngles = [0, 0, 60, 120, 180, 240, 300];
+const vectorColors = ['#64748b','#ff4d6d','#ffaa00','#4dffb8','#4d9fff','#b84dff','#ff6b35'];
+const vectorNames  = ['V₀','V₁','V₂','V₃','V₄','V₅','V₆'];
+const sectorColors = ['rgba(255,77,109,0.06)','rgba(255,170,0,0.06)','rgba(77,255,184,0.06)',
+                      'rgba(77,159,255,0.06)','rgba(184,77,255,0.06)','rgba(255,107,53,0.06)'];
+
+function getSector(theta) {
+  const t = ((theta % 360) + 360) % 360;
+  return Math.floor(t / 60) + 1;
+}
+
+function getTimes(theta, mod) {
+  const t = ((theta % 360) + 360) % 360;
+  const sector = getSector(t);
+  const theta_r = (t - (sector-1)*60) * Math.PI / 180;
+  const T1 = mod * Math.sin(Math.PI/3 - theta_r);
+  const T2 = mod * Math.sin(theta_r);
+  const T0 = Math.max(0, 1 - T1 - T2);
+  return { T1: Math.min(T1, 1), T2: Math.min(T2, 1), T0, sector };
+}
+
+function drawSV() {
+  const W = svCanvas.width, H = svCanvas.height;
+  const cx = W/2, cy = H/2, R = W*0.38;
+  svCtx.clearRect(0,0,W,H);
+  svCtx.fillStyle = '#111827';
+  svCtx.fillRect(0,0,W,H);
+
+  // Sector fills
+  for (let s=0; s<6; s++) {
+    const a1 = (s*60 - 30) * Math.PI/180;
+    const a2 = ((s+1)*60 - 30) * Math.PI/180;
+    svCtx.beginPath();
+    svCtx.moveTo(cx, cy);
+    svCtx.arc(cx, cy, R*1.05, -a1, -a2, true);
+    svCtx.closePath();
+    svCtx.fillStyle = sectorColors[s];
+    svCtx.fill();
+  }
+
+  // Hexagon
+  svCtx.beginPath();
+  for (let i=0; i<6; i++) {
+    const ang = (i*60) * Math.PI/180;
+    const x = cx + R * Math.cos(ang);
+    const y = cy - R * Math.sin(ang);
+    i===0 ? svCtx.moveTo(x,y) : svCtx.lineTo(x,y);
+  }
+  svCtx.closePath();
+  svCtx.strokeStyle = '#1e3a5f';
+  svCtx.lineWidth = 1.5;
+  svCtx.stroke();
+
+  // Grid circles
+  [0.33, 0.67, 1.0].forEach(r => {
+    svCtx.beginPath();
+    svCtx.arc(cx, cy, R*r, 0, 2*Math.PI);
+    svCtx.strokeStyle = '#1a2436';
+    svCtx.lineWidth = 1;
+    svCtx.stroke();
+  });
+
+  // Axes
+  svCtx.strokeStyle = '#1e3a5f';
+  svCtx.lineWidth = 1;
+  svCtx.beginPath(); svCtx.moveTo(cx-R*1.15,cy); svCtx.lineTo(cx+R*1.15,cy); svCtx.stroke();
+  svCtx.beginPath(); svCtx.moveTo(cx,cy-R*1.15); svCtx.lineTo(cx,cy+R*1.15); svCtx.stroke();
+  svCtx.fillStyle = '#4d6b8a'; svCtx.font = '12px JetBrains Mono';
+  svCtx.fillText('α', cx+R*1.1, cy-6);
+  svCtx.fillText('β', cx+6, cy-R*1.1);
+
+  // Sector labels
+  for (let s=0; s<6; s++) {
+    const sNames = ['I','II','III','IV','V','VI'];
+    const midAng = (s*60 + 30) * Math.PI/180;
+    const lx = cx + R*0.6 * Math.cos(midAng);
+    const ly = cy - R*0.6 * Math.sin(midAng);
+    svCtx.fillStyle = '#2a4060';
+    svCtx.font = 'bold 13px JetBrains Mono';
+    svCtx.textAlign = 'center';
+    svCtx.fillText(sNames[s], lx, ly+4);
+  }
+
+  // 6 base vectors
+  for (let i=1; i<=6; i++) {
+    const ang = vectorAngles[i] * Math.PI/180;
+    const vx = cx + R * Math.cos(ang);
+    const vy = cy - R * Math.sin(ang);
+    svCtx.beginPath();
+    svCtx.moveTo(cx, cy);
+    svCtx.lineTo(vx, vy);
+    svCtx.strokeStyle = vectorColors[i];
+    svCtx.lineWidth = 2;
+    svCtx.stroke();
+    // arrowhead
+    const headLen = 10;
+    const headAng = Math.atan2(cy-vy, vx-cx);
+    svCtx.beginPath();
+    svCtx.moveTo(vx, vy);
+    svCtx.lineTo(vx - headLen*Math.cos(headAng-0.35), vy + headLen*Math.sin(headAng-0.35));
+    svCtx.lineTo(vx - headLen*Math.cos(headAng+0.35), vy + headLen*Math.sin(headAng+0.35));
+    svCtx.fillStyle = vectorColors[i];
+    svCtx.fill();
+    // label
+    const lx = cx + (R+22) * Math.cos(ang);
+    const ly = cy - (R+22) * Math.sin(ang);
+    svCtx.fillStyle = vectorColors[i];
+    svCtx.font = 'bold 13px JetBrains Mono';
+    svCtx.textAlign = 'center';
+    svCtx.fillText(vectorNames[i], lx, ly+4);
+  }
+
+  // Reference vector
+  const { T1, T2, T0, sector } = getTimes(svAngle, svMod);
+  const refAng = svAngle * Math.PI/180;
+  const refR = R * svMod;
+  const rx = cx + refR * Math.cos(refAng);
+  const ry = cy - refR * Math.sin(refAng);
+
+  // T1, T2 component vectors
+  const s1ang = ((sector-1)*60) * Math.PI/180;
+  const s2ang = (sector*60) * Math.PI/180;
+  const t1x = cx + R*T1*Math.cos(s1ang);
+  const t1y = cy - R*T1*Math.sin(s1ang);
+  const t2x = t1x + R*T2*Math.cos(s2ang);
+  const t2y = t1y - R*T2*Math.sin(s2ang);
+
+  // Draw parallelogram
+  svCtx.beginPath();
+  svCtx.moveTo(cx, cy);
+  svCtx.lineTo(t1x, t1y);
+  svCtx.lineTo(t2x, t2y);
+  svCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+  svCtx.setLineDash([4,4]);
+  svCtx.lineWidth = 1.5;
+  svCtx.stroke();
+  svCtx.moveTo(cx, cy);
+  svCtx.lineTo(t2x - t1x + cx, t2y - t1y + cy);
+  svCtx.lineTo(t2x, t2y);
+  svCtx.stroke();
+  svCtx.setLineDash([]);
+
+  // Reference vector
+  svCtx.beginPath();
+  svCtx.moveTo(cx, cy);
+  svCtx.lineTo(rx, ry);
+  svCtx.strokeStyle = '#ffffff';
+  svCtx.lineWidth = 3;
+  svCtx.stroke();
+  const rHeadLen = 12;
+  const rHeadAng = Math.atan2(cy-ry, rx-cx);
+  svCtx.beginPath();
+  svCtx.moveTo(rx, ry);
+  svCtx.lineTo(rx - rHeadLen*Math.cos(rHeadAng-0.4), ry + rHeadLen*Math.sin(rHeadAng-0.4));
+  svCtx.lineTo(rx - rHeadLen*Math.cos(rHeadAng+0.4), ry + rHeadLen*Math.sin(rHeadAng+0.4));
+  svCtx.fillStyle = '#ffffff';
+  svCtx.fill();
+
+  // Label Vref
+  svCtx.fillStyle = '#ffffff';
+  svCtx.font = 'bold 13px JetBrains Mono';
+  svCtx.textAlign = 'left';
+  svCtx.fillText('Vref', rx+6, ry-6);
+
+  // Center dot
+  svCtx.beginPath();
+  svCtx.arc(cx, cy, 4, 0, 2*Math.PI);
+  svCtx.fillStyle = '#ffffff';
+  svCtx.fill();
+
+  // Update pills
+  const sectorNames = ['','I','II','III','IV','V','VI'];
+  document.getElementById('sv-sector').textContent = sectorNames[sector];
+  document.getElementById('sv-t1').textContent = T1.toFixed(3);
+  document.getElementById('sv-t2').textContent = T2.toFixed(3);
+  document.getElementById('sv-t0').textContent = T0.toFixed(3);
+}
+
+function updateSV() {
+  svAngle = parseFloat(document.getElementById('angle-slider').value);
+  svMod = parseFloat(document.getElementById('mod-slider').value) / 100;
+  document.getElementById('angle-val').textContent = svAngle;
+  document.getElementById('mod-val').textContent = svMod.toFixed(2);
+  drawSV();
+}
+
+function toggleRotate() {
+  const btn = document.getElementById('rotate-btn');
+  if (svRotating) {
+    svRotating = false; clearInterval(svRotTimer); btn.textContent = '▶ 自动旋转';
+  } else {
+    svRotating = true;
+    svRotTimer = setInterval(() => {
+      svAngle = (svAngle + 1) % 360;
+      document.getElementById('angle-slider').value = svAngle;
+      document.getElementById('angle-val').textContent = svAngle;
+      drawSV();
+    }, 40);
+    btn.textContent = '⏹ 停止';
+  }
+}
+drawSV();
+
+// ============================================================
+// TIMING DIAGRAM
+// ============================================================
+const timingCanvas = document.getElementById('timing-canvas');
+const tCtx = timingCanvas.getContext('2d');
+
+function updateTiming() {
+  let t1 = parseFloat(document.getElementById('t1-slider').value) / 100;
+  let t2 = parseFloat(document.getElementById('t2-slider').value) / 100;
+  if (t1 + t2 > 0.95) { t2 = 0.95 - t1; document.getElementById('t2-slider').value = Math.round(t2*100); }
+  const t0 = 1 - t1 - t2;
+  document.getElementById('t1-pct').textContent = Math.round(t1*100);
+  document.getElementById('t2-pct').textContent = Math.round(t2*100);
+
+  // Compare values
+  const tcma = t0/4;
+  const tcmb = t0/4 + t1/2;
+  const tcmc = t0/4 + t1/2 + t2/2;
+  document.getElementById('tcma').textContent = (tcma*100).toFixed(1);
+  document.getElementById('tcmb').textContent = (tcmb*100).toFixed(1);
+  document.getElementById('tcmc').textContent = (tcmc*100).toFixed(1);
+
+  drawTiming(t1, t2, t0);
+}
+
+function drawTiming(t1, t2, t0) {
+  const W = timingCanvas.width = timingCanvas.parentElement.clientWidth || 700;
+  const H = 280;
+  timingCanvas.height = H;
+  const ctx = tCtx;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#080d14';
+  ctx.fillRect(0,0,W,H);
+
+  const margin = { left: 60, right: 20, top: 20, bottom: 30 };
+  const plotW = W - margin.left - margin.right;
+  const rowH = 52, rowPad = 10;
+  const phaseColors = ['#ff4d6d','#4dffb8','#4d9fff'];
+  const phaseNames = ['Sa (A相)','Sb (B相)','Sc (C相)'];
+
+  // Segments for 7-segment (Sector I: V0 V1 V2 V7 V2 V1 V0)
+  const segs = [t0/4, t1/2, t2/2, t0/2, t2/2, t1/2, t0/4];
+  const states = [
+    [0,1,1,1,1,1,0],  // Sa
+    [0,0,1,1,1,0,0],  // Sb
+    [0,0,0,1,0,0,0],  // Sc
+  ];
+  const vecLabels = ['V₀','V₁','V₂','V₇','V₂','V₁','V₀'];
+  const vecColors = ['#64748b','#ff4d6d','#ffaa00','#64748b','#ffaa00','#ff4d6d','#64748b'];
+
+  // Segment labels
+  let xAcc = 0;
+  segs.forEach((s, si) => {
+    const x1 = margin.left + xAcc * plotW;
+    const x2 = margin.left + (xAcc + s) * plotW;
+    const mx = (x1+x2)/2;
+    ctx.fillStyle = vecColors[si];
+    ctx.font = '11px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(vecLabels[si], mx, margin.top + 12);
+    // vertical divider
+    ctx.strokeStyle = '#1e3a5f';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(x2, margin.top+16); ctx.lineTo(x2, H-margin.bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    xAcc += s;
+  });
+
+  // Waveforms
+  states.forEach((stateArr, pi) => {
+    const baseY = margin.top + 22 + pi * (rowH + rowPad);
+    const highY = baseY + rowPad;
+    const lowY = baseY + rowH - rowPad;
+
+    ctx.fillStyle = phaseColors[pi] + '15';
+    // Label
+    ctx.fillStyle = phaseColors[pi];
+    ctx.font = '11px JetBrains Mono';
+    ctx.textAlign = 'right';
+    ctx.fillText(phaseNames[pi], margin.left - 6, (highY+lowY)/2 + 4);
+
+    // Draw waveform
+    ctx.beginPath();
+    let xPos = margin.left;
+    let prevState = stateArr[0];
+    ctx.moveTo(xPos, prevState ? highY : lowY);
+
+    let xCumulative = 0;
+    segs.forEach((seg, si) => {
+      const curState = stateArr[si];
+      const x1 = margin.left + xCumulative * plotW;
+      const x2 = margin.left + (xCumulative + seg) * plotW;
+      if (curState !== prevState) {
+        ctx.lineTo(x1, prevState ? highY : lowY);
+        ctx.lineTo(x1, curState ? highY : lowY);
+      }
+      ctx.lineTo(x2, curState ? highY : lowY);
+      prevState = curState;
+      xCumulative += seg;
+    });
+    ctx.strokeStyle = phaseColors[pi];
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Fill area under high
+    ctx.fillStyle = phaseColors[pi] + '20';
+    ctx.beginPath();
+    xCumulative = 0;
+    let inHigh = false;
+    ctx.moveTo(margin.left, lowY);
+    segs.forEach((seg, si) => {
+      const x1 = margin.left + xCumulative * plotW;
+      const x2 = margin.left + (xCumulative + seg) * plotW;
+      if (stateArr[si]) {
+        ctx.lineTo(x1, lowY); ctx.lineTo(x1, highY); ctx.lineTo(x2, highY); ctx.lineTo(x2, lowY);
+      } else {
+        ctx.lineTo(x2, lowY);
+      }
+      xCumulative += seg;
+    });
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Time axis
+  ctx.strokeStyle = '#1e3a5f';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(margin.left, H - margin.bottom);
+  ctx.lineTo(W - margin.right, H - margin.bottom);
+  ctx.stroke();
+  ctx.fillStyle = '#64748b';
+  ctx.font = '11px JetBrains Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('0', margin.left - 3, H - margin.bottom + 14);
+  ctx.textAlign = 'right';
+  ctx.fillText('Ts', W - margin.right, H - margin.bottom + 14);
+  ctx.textAlign = 'center';
+  ctx.fillText('Ts/2', margin.left + plotW/2, H - margin.bottom + 14);
+}
+updateTiming();
+window.addEventListener('resize', updateTiming);
+
+// ============================================================
+// SCROLL REVEAL
+// ============================================================
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('revealed'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
