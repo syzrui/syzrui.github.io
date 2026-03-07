@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>流体混合模拟</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+:root {
+  --c1: #ff3060;
+  --c2: #00c8ff;
+  --bg:     #04040e;
+  --panel:  #070712;
+  --border: #0e0e1e;
+  --dim:    #252535;
+  --mid:    #404055;
+  --hi:     #6a6a88;
+  --radius: 6px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+html, body {
+  background: var(--bg);
+  font-family: 'Share Tech Mono','Courier New',monospace;
+  color: var(--mid);
+  user-select: none;
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════════
+   LAYOUT WRAPPER
+═══════════════════════════════════════════ */
+#app {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  gap: 0;
+}
+
+/* ═══════════════════════════════════════════
+   CANVAS AREA
+═══════════════════════════════════════════ */
+.canvas-wrap {
+  position: relative;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.canvas-wrap::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    transparent 50%, rgba(4,4,14,0.5) 100%);
+}
+#c {
+  display: block;
+  cursor: none;
+  touch-action: none;
+}
+
+/* ═══════════════════════════════════════════
+   SIDE PANELS — DESKTOP
+═══════════════════════════════════════════ */
+.left-panel, .right-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.left-panel {
+  width: 186px;
+  border-right: none;
+  border-radius: var(--radius) 0 0 var(--radius);
+  padding: 0;
+  overflow: hidden;
+}
+.right-panel {
+  width: 50px;
+  border-left: none;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  align-items: center;
+  padding: 14px 0 12px;
+  gap: 0;
+}
+
+/* ═══════════════════════════════════════════
+   PANEL BLOCKS
+═══════════════════════════════════════════ */
+.pblock {
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.pblock.grow { flex: 1; display:flex; flex-direction:column; justify-content:flex-end; }
+
+.sec-lbl {
+  font-size: 0.42rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 9px;
+  display: flex; align-items: center; gap: 6px;
+}
+.sec-lbl::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ── Tool buttons ── */
+.tool-list { display:flex; flex-direction:column; gap:4px; }
+.tool-btn {
+  font-family: inherit;
+  font-size: 0.56rem;
+  letter-spacing: 0.05em;
+  padding: 7px 9px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--mid);
+  display: flex; align-items: center; gap: 8px;
+  transition: all 0.14s;
+  text-align: left; width: 100%;
+}
+.tool-btn:active { opacity: 0.7; }
+.tool-icon {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+}
+.tool-icon.stir {
+  background: transparent;
+  border: 1.5px solid currentColor;
+  position: relative;
+}
+.tool-icon.stir::after {
+  content:''; position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:4px; height:4px; border-radius:50%; background:currentColor;
+}
+.tool-btn:hover { color:var(--hi); border-color:#1a1a30; background:rgba(255,255,255,0.012); }
+.tool-btn.active { color:var(--hi); background:rgba(255,255,255,0.022); }
+.tool-btn[data-tool="pour1"].active { border-color:#3a1020; box-shadow:inset 3px 0 0 var(--c1); }
+.tool-btn[data-tool="pour2"].active { border-color:#002040; box-shadow:inset 3px 0 0 var(--c2); }
+.tool-btn[data-tool="stir"].active  { border-color:#1a1a38; box-shadow:inset 3px 0 0 #556; }
+
+/* ── Decay mode buttons ── */
+.decay-list { display:flex; flex-direction:column; gap:4px; }
+.decay-btn {
+  font-family: inherit;
+  font-size: 0.56rem;
+  letter-spacing: 0.05em;
+  padding: 6px 9px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--mid);
+  display: flex; align-items: center; gap: 8px;
+  transition: all 0.14s;
+  text-align: left; width: 100%;
+}
+.decay-icon {
+  width: 14px; height: 14px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+/* fade icon: gradient fading out */
+.decay-icon.fade {
+  background: linear-gradient(to right, #5566aa, transparent);
+  border: 1px solid #2a2a44;
+}
+/* still icon: solid block */
+.decay-icon.still {
+  background: #3a3a6a;
+  border: 1px solid #2a2a55;
+}
+/* spread icon: dots radiating */
+.decay-icon.spread {
+  background: radial-gradient(circle at center, #5566aa 20%, transparent 70%);
+  border: 1px solid #2a2a44;
+}
+.decay-btn:hover { color:var(--hi); border-color:#1a1a30; background:rgba(255,255,255,0.012); }
+.decay-btn.active { color:var(--hi); border-color:#1e1e40; background:rgba(255,255,255,0.025); box-shadow:inset 3px 0 0 #4455aa; }
+
+/* ── Color rows ── */
+.color-row {
+  display: grid;
+  grid-template-columns: 14px 20px 1fr;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+.color-row:last-child { margin-bottom:0; }
+.color-tag { font-size:0.42rem; color:var(--dim); }
+.color-dot {
+  width:20px; height:20px; border-radius:50%;
+  border: 2px solid rgba(255,255,255,0.07);
+  cursor:pointer; position:relative; transition:transform 0.14s;
+}
+.color-dot:hover { transform:scale(1.15); }
+.color-dot input[type=color] {
+  position:absolute; inset:0; opacity:0;
+  cursor:pointer; width:100%; height:100%; border:none; padding:0;
+}
+.hex-val {
+  font-size:0.5rem; letter-spacing:0.03em;
+  color:var(--dim); background:rgba(0,0,0,0.22);
+  border:1px solid var(--border); border-radius:3px;
+  padding:3px 6px; font-family:inherit;
+  transition:color 0.25s;
+}
+
+/* ── Viscosity ── */
+.visc-header { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px; }
+.visc-name { font-size:0.54rem; color:var(--hi); }
+.visc-num  { font-size:0.44rem; color:var(--dim); }
+input[type=range] {
+  -webkit-appearance:none; appearance:none;
+  width:100%; height:2px;
+  background:var(--border); border-radius:2px; outline:none; cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  width:12px; height:12px; border-radius:50%;
+  background:var(--hi); border:none; cursor:pointer;
+  box-shadow:0 0 5px rgba(100,100,180,0.4);
+  transition:transform 0.12s;
+}
+input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.35); }
+input[type=range]::-moz-range-thumb {
+  width:12px; height:12px; border-radius:50%;
+  background:var(--hi); border:none;
+}
+.visc-ends {
+  display:flex; justify-content:space-between;
+  font-size:0.38rem; color:var(--dim); margin-top:5px; letter-spacing:0.06em;
+}
+
+/* ── Action buttons ── */
+.btn-row { display:flex; gap:5px; }
+.btn {
+  flex:1; font-family:inherit; font-size:0.48rem;
+  letter-spacing:0.15em; padding:7px 0;
+  background:transparent; color:var(--dim);
+  border:1px solid var(--border); border-radius:3px;
+  cursor:pointer; text-transform:uppercase; transition:all 0.16s;
+}
+.btn:hover { color:var(--hi); border-color:#1c1c38; background:rgba(255,255,255,0.015); }
+.btn:active { opacity:0.6; }
+
+/* ── Right panel meters ── */
+.v-label {
+  font-size:0.36rem; letter-spacing:0.25em; text-transform:uppercase;
+  color:var(--dim); writing-mode:vertical-rl;
+  transform:rotate(180deg); margin-bottom:14px;
+}
+.meters-wrap { flex:1; display:flex; align-items:flex-end; gap:7px; padding-bottom:6px; }
+.meter-bar {
+  width:7px; height:140px;
+  background:rgba(255,255,255,0.025);
+  border-radius:4px; position:relative; overflow:hidden;
+  border:1px solid var(--border);
+}
+.meter-fill {
+  position:absolute; bottom:0; left:0; right:0;
+  border-radius:3px; transition:height 0.1s ease;
+}
+.meter-labels { display:flex; gap:7px; margin-top:5px; }
+.m-label { font-size:0.36rem; width:7px; text-align:center; color:var(--dim); }
+
+/* ═══════════════════════════════════════════
+   CURSOR DOT
+═══════════════════════════════════════════ */
+#cursor-dot {
+  position:fixed; border-radius:50%; pointer-events:none;
+  transform:translate(-50%,-50%); z-index:9999;
+  mix-blend-mode:screen;
+  transition:background 0.2s,box-shadow 0.2s,width 0.1s,height 0.1s,opacity 0.2s;
+  opacity:0;
+}
+@keyframes ripple {
+  from { transform:translate(-50%,-50%) scale(0.2); opacity:0.8; }
+  to   { transform:translate(-50%,-50%) scale(2.8); opacity:0; }
+}
+.ripple-el {
+  position:fixed; width:26px; height:26px; border-radius:50%;
+  border:1.5px solid currentColor; pointer-events:none;
+  z-index:9998; animation:ripple 0.45s ease-out forwards;
+}
+
+/* ═══════════════════════════════════════════
+   MOBILE BOTTOM PANEL
+═══════════════════════════════════════════ */
+#mobile-panel {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  z-index: 100;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* tab bar */
+.mob-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.mob-tab {
+  flex: 1; font-family:inherit;
+  font-size: 0.5rem; letter-spacing: 0.12em;
+  padding: 9px 4px; text-transform: uppercase;
+  background: transparent; color: var(--dim);
+  border: none; cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.14s;
+}
+.mob-tab.active { color: var(--hi); border-bottom-color: #3344aa; }
+
+/* tab content pane */
+.mob-pane {
+  display: none;
+  padding: 12px 14px;
+  overflow-y: auto;
+  flex: 1;
+}
+.mob-pane.active { display: block; }
+
+/* mobile grid layouts */
+.mob-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.mob-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 7px;
+}
+
+/* mobile tool/decay buttons — compact */
+.mob-btn {
+  font-family: inherit; font-size: 0.52rem; letter-spacing: 0.04em;
+  padding: 9px 6px; background: transparent;
+  border: 1px solid var(--border); border-radius: 4px;
+  cursor: pointer; color: var(--mid);
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; transition: all 0.14s; text-align:center;
+}
+.mob-btn:active { opacity: 0.6; transform: scale(0.96); }
+.mob-btn.active { color: var(--hi); background: rgba(255,255,255,0.025); }
+.mob-btn[data-tool="pour1"].active { border-color:#3a1020; box-shadow:inset 0 -2px 0 var(--c1); }
+.mob-btn[data-tool="pour2"].active { border-color:#002040; box-shadow:inset 0 -2px 0 var(--c2); }
+.mob-btn[data-tool="stir"].active  { border-color:#1a1a38; box-shadow:inset 0 -2px 0 #556; }
+.mob-btn[data-decay].active { border-color:#1e1e40; box-shadow:inset 0 -2px 0 #4455aa; }
+
+/* mobile color row */
+.mob-color-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px;
+}
+.mob-color-row:last-child { margin-bottom: 0; }
+.mob-color-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.08);
+  cursor: pointer; position: relative; flex-shrink: 0;
+}
+.mob-color-dot input[type=color] {
+  position:absolute; inset:0; opacity:0;
+  cursor:pointer; width:100%; height:100%; border:none; padding:0;
+}
+.mob-hex { font-size:0.58rem; color:var(--dim); letter-spacing:0.04em; }
+
+/* mobile viscosity */
+.mob-visc-header {
+  display:flex; justify-content:space-between; align-items:baseline;
+  margin-bottom:8px;
+}
+.mob-visc-name { font-size:0.58rem; color:var(--hi); }
+.mob-visc-num  { font-size:0.5rem; color:var(--dim); }
+
+/* mobile action row */
+.mob-actions { display:flex; gap:8px; margin-top:10px; }
+.mob-action-btn {
+  flex:1; font-family:inherit; font-size:0.56rem;
+  letter-spacing:0.12em; padding:9px 0;
+  background:transparent; color:var(--dim);
+  border:1px solid var(--border); border-radius:4px;
+  cursor:pointer; text-transform:uppercase;
+  transition:all 0.16s;
+}
+.mob-action-btn:active { opacity:0.6; }
+
+.mob-sec-lbl {
+  font-size:0.42rem; letter-spacing:0.28em;
+  text-transform:uppercase; color:var(--dim);
+  margin-bottom:9px; margin-top:2px;
+  display:flex; align-items:center; gap:6px;
+}
+.mob-sec-lbl::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+═══════════════════════════════════════════ */
+@media (max-width: 840px) {
+  #app {
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    overflow-y: auto;
+    height: 100vh;
+    padding-bottom: 0;
+  }
+  .left-panel, .right-panel { display: none; }
+  .canvas-wrap {
+    width: 100vw;
+    flex-shrink: 0;
+  }
+  #c {
+    width: 100vw !important;
+    height: 100vw !important;
+  }
+  #mobile-panel {
+    display: flex;
+    height: calc(100vh - 100vw);
+    min-height: 200px;
+  }
+  #cursor-dot { display: none; }
+}
+
+/* Very small phones: ensure canvas doesn't overflow */
+@media (max-width: 420px) {
+  #mobile-panel { min-height: 220px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══ LEFT PANEL (desktop) ═══ -->
+  <div class="left-panel" id="left-panel-desktop">
+    <div class="pblock">
+      <div class="sec-lbl">工具模式</div>
+      <div class="tool-list">
+        <button class="tool-btn active" data-tool="pour1">
+          <div class="tool-icon" id="ti1d"></div>倾倒液体&nbsp;1
+        </button>
+        <button class="tool-btn" data-tool="pour2">
+          <div class="tool-icon" id="ti2d"></div>倾倒液体&nbsp;2
+        </button>
+        <button class="tool-btn" data-tool="stir">
+          <div class="tool-icon stir"></div>仅搅动液体
+        </button>
+      </div>
+    </div>
+
+    <div class="pblock">
+      <div class="sec-lbl">消散模式</div>
+      <div class="decay-list">
+        <button class="decay-btn" data-decay="fade">
+          <div class="decay-icon fade"></div>渐变消散
+        </button>
+        <button class="decay-btn active" data-decay="still">
+          <div class="decay-icon still"></div>静止不动
+        </button>
+        <button class="decay-btn" data-decay="spread">
+          <div class="decay-icon spread"></div>均匀扩散
+        </button>
+      </div>
+    </div>
+
+    <div class="pblock">
+      <div class="sec-lbl">颜色调节</div>
+      <div class="color-row">
+        <span class="color-tag">C1</span>
+        <div class="color-dot" id="dot1d">
+          <input type="color" id="cp1d" value="#ff3060">
+        </div>
+        <div class="hex-val" id="hex1d">#ff3060</div>
+      </div>
+      <div class="color-row">
+        <span class="color-tag">C2</span>
+        <div class="color-dot" id="dot2d">
+          <input type="color" id="cp2d" value="#00c8ff">
+        </div>
+        <div class="hex-val" id="hex2d">#00c8ff</div>
+      </div>
+    </div>
+
+    <div class="pblock">
+      <div class="sec-lbl">液体粘度</div>
+      <div class="visc-header">
+        <span class="visc-name" id="viscNameD">中等</span>
+        <span class="visc-num" id="viscNumD">5 / 10</span>
+      </div>
+      <input type="range" id="viscSliderD" min="1" max="10" value="5" step="1">
+      <div class="visc-ends"><span>清水</span><span>蜂蜜</span></div>
+    </div>
+
+    <div class="pblock grow">
+      <div class="btn-row">
+        <button class="btn" id="initBtnD">重置</button>
+        <button class="btn" id="clearBtnD">清空</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ CANVAS ═══ -->
+  <div class="canvas-wrap">
+    <canvas id="c" width="128" height="128"></canvas>
+  </div>
+
+  <!-- ═══ RIGHT PANEL (desktop) ═══ -->
+  <div class="right-panel">
+    <span class="v-label">密度</span>
+    <div class="meters-wrap">
+      <div class="meter-bar"><div class="meter-fill" id="fill1"></div></div>
+      <div class="meter-bar"><div class="meter-fill" id="fill2"></div></div>
+    </div>
+    <div class="meter-labels">
+      <span class="m-label" id="ml1">C1</span>
+      <span class="m-label" id="ml2">C2</span>
+    </div>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ═══ MOBILE PANEL ═══ -->
+<div id="mobile-panel">
+  <div class="mob-tabs">
+    <button class="mob-tab active" data-tab="tools">工具</button>
+    <button class="mob-tab" data-tab="decay">消散</button>
+    <button class="mob-tab" data-tab="color">颜色</button>
+    <button class="mob-tab" data-tab="visc">粘度</button>
+  </div>
+
+  <!-- Tools tab -->
+  <div class="mob-pane active" id="tab-tools">
+    <div class="mob-sec-lbl">工具模式</div>
+    <div class="mob-grid-3">
+      <button class="mob-btn active" data-tool="pour1" id="mtb1">
+        <span id="mti1">💧</span> 液体1
+      </button>
+      <button class="mob-btn" data-tool="pour2" id="mtb2">
+        <span id="mti2">💧</span> 液体2
+      </button>
+      <button class="mob-btn" data-tool="stir" id="mtb3">
+        ◎ 搅动
+      </button>
+    </div>
+    <div class="mob-actions">
+      <button class="mob-action-btn" id="initBtnM">重 置</button>
+      <button class="mob-action-btn" id="clearBtnM">清 空</button>
+    </div>
+  </div>
+
+  <!-- Decay tab -->
+  <div class="mob-pane" id="tab-decay">
+    <div class="mob-sec-lbl">消散模式</div>
+    <div class="mob-grid-3">
+      <button class="mob-btn" data-decay="fade">
+        <span>〜</span>渐变消散
+      </button>
+      <button class="mob-btn active" data-decay="still">
+        <span>■</span>静止不动
+      </button>
+      <button class="mob-btn" data-decay="spread">
+        <span>◉</span>均匀扩散
+      </button>
+    </div>
+  </div>
+
+  <!-- Color tab -->
+  <div class="mob-pane" id="tab-color">
+    <div class="mob-sec-lbl">颜色调节</div>
+    <div class="mob-color-row">
+      <div class="mob-color-dot" id="dot1m">
+        <input type="color" id="cp1m" value="#ff3060">
+      </div>
+      <span class="mob-hex" id="hex1m" style="color:#ff3060">液体 1 — #ff3060</span>
+    </div>
+    <div class="mob-color-row">
+      <div class="mob-color-dot" id="dot2m">
+        <input type="color" id="cp2m" value="#00c8ff">
+      </div>
+      <span class="mob-hex" id="hex2m" style="color:#00c8ff">液体 2 — #00c8ff</span>
+    </div>
+  </div>
+
+  <!-- Viscosity tab -->
+  <div class="mob-pane" id="tab-visc">
+    <div class="mob-sec-lbl">液体粘度</div>
+    <div class="mob-visc-header">
+      <span class="mob-visc-name" id="viscNameM">中等</span>
+      <span class="mob-visc-num" id="viscNumM">5 / 10</span>
+    </div>
+    <input type="range" id="viscSliderM" min="1" max="10" value="5" step="1"
+           style="width:100%;margin-bottom:6px;">
+    <div class="visc-ends"><span>清水</span><span>蜂蜜</span></div>
+  </div>
+</div><!-- mobile-panel -->
+
+<div id="cursor-dot"></div>
+
+<script>
+// ════════════════════════════════════════════
+//  Fluid Solver (Stam 1999)
+// ════════════════════════════════════════════
+const N=128, SZ=(N+2)*(N+2), ITER=8, DT=0.018;
+const DIFF_BASE  = 0.00002;  // normal diffusion
+const DIFF_SPREAD= 0.00090;  // spread mode diffusion
+let VISC=0.00010;
+
+const IX=(x,y)=>x+(N+2)*y;
+const Vx=new Float32Array(SZ),Vy=new Float32Array(SZ);
+const Vtx=new Float32Array(SZ),Vty=new Float32Array(SZ);
+const Fx=new Float32Array(SZ),Fy=new Float32Array(SZ);
+const d1=new Float32Array(SZ),d2=new Float32Array(SZ);
+const dtA=new Float32Array(SZ);
+const s1=new Float32Array(SZ),s2=new Float32Array(SZ);
+
+function setBnd(b,x){
+  for(let i=1;i<=N;i++){
+    x[IX(0,i)]=b===1?-x[IX(1,i)]:x[IX(1,i)];
+    x[IX(N+1,i)]=b===1?-x[IX(N,i)]:x[IX(N,i)];
+    x[IX(i,0)]=b===2?-x[IX(i,1)]:x[IX(i,1)];
+    x[IX(i,N+1)]=b===2?-x[IX(i,N)]:x[IX(i,N)];
+  }
+  x[IX(0,0)]=.5*(x[IX(1,0)]+x[IX(0,1)]);
+  x[IX(0,N+1)]=.5*(x[IX(1,N+1)]+x[IX(0,N)]);
+  x[IX(N+1,0)]=.5*(x[IX(N,0)]+x[IX(N+1,1)]);
+  x[IX(N+1,N+1)]=.5*(x[IX(N,N+1)]+x[IX(N+1,N)]);
+}
+function linSolve(b,x,x0,a,c){
+  const r=1/c;
+  for(let k=0;k<ITER;k++){
+    for(let j=1;j<=N;j++)for(let i=1;i<=N;i++)
+      x[IX(i,j)]=(x0[IX(i,j)]+a*(x[IX(i-1,j)]+x[IX(i+1,j)]+x[IX(i,j-1)]+x[IX(i,j+1)]))*r;
+    setBnd(b,x);
+  }
+}
+function diffuse(b,x,x0,diff){
+  const a=DT*diff*N*N;
+  linSolve(b,x,x0,a,1+4*a);
+}
+function project(vx,vy,p,div){
+  const h=1/N;
+  for(let j=1;j<=N;j++)for(let i=1;i<=N;i++){
+    div[IX(i,j)]=-0.5*h*(vx[IX(i+1,j)]-vx[IX(i-1,j)]+vy[IX(i,j+1)]-vy[IX(i,j-1)]);
+    p[IX(i,j)]=0;
+  }
+  setBnd(0,div);setBnd(0,p);linSolve(0,p,div,1,4);
+  for(let j=1;j<=N;j++)for(let i=1;i<=N;i++){
+    vx[IX(i,j)]-=0.5*(p[IX(i+1,j)]-p[IX(i-1,j)])/h;
+    vy[IX(i,j)]-=0.5*(p[IX(i,j+1)]-p[IX(i,j-1)])/h;
+  }
+  setBnd(1,vx);setBnd(2,vy);
+}
+function advect(b,d,d0,vx,vy){
+  const dtN=DT*N;
+  for(let j=1;j<=N;j++)for(let i=1;i<=N;i++){
+    let x=i-dtN*vx[IX(i,j)],y=j-dtN*vy[IX(i,j)];
+    x=Math.max(0.5,Math.min(N+0.5,x));
+    y=Math.max(0.5,Math.min(N+0.5,y));
+    const i0=x|0,i1=i0+1,j0=y|0,j1=j0+1;
+    const sx=x-i0,sx0=1-sx,ty=y-j0,ty0=1-ty;
+    d[IX(i,j)]=sx0*(ty0*d0[IX(i0,j0)]+ty*d0[IX(i0,j1)])+sx*(ty0*d0[IX(i1,j0)]+ty*d0[IX(i1,j1)]);
+  }
+  setBnd(b,d);
+}
+function decayArr(arr,k){ for(let i=0;i<arr.length;i++) arr[i]*=k; }
+
+// ── Decay modes ──
+// fade:   density decays over time (original)
+// still:  density stays, no diffusion
+// spread: high diffusion, no decay (dye spreads out evenly)
+let decayMode = 'still';
+
+function fluidStep(){
+  for(let i=0;i<SZ;i++){Vx[i]+=Fx[i];Vy[i]+=Fy[i];}
+  Fx.fill(0);Fy.fill(0);
+
+  diffuse(1,Vtx,Vx,VISC);diffuse(2,Vty,Vy,VISC);
+  project(Vtx,Vty,Vx,Vy);
+  advect(1,Vx,Vtx,Vtx,Vty);advect(2,Vy,Vty,Vtx,Vty);
+  project(Vx,Vy,Vtx,Vty);
+
+  const vd=Math.max(0.80,0.997-VISC*380);
+  decayArr(Vx,vd);decayArr(Vy,vd);
+
+  // Dye 1
+  for(let i=0;i<SZ;i++) d1[i]+=s1[i]; s1.fill(0);
+  if(decayMode==='fade'){
+    diffuse(0,dtA,d1,DIFF_BASE); advect(0,d1,dtA,Vx,Vy); decayArr(d1,0.9982);
+  } else if(decayMode==='still'){
+    // Only advect, no diffusion, no decay
+    dtA.set(d1); advect(0,d1,dtA,Vx,Vy);
+  } else { // spread
+    diffuse(0,dtA,d1,DIFF_SPREAD); advect(0,d1,dtA,Vx,Vy);
+  }
+
+  // Dye 2
+  for(let i=0;i<SZ;i++) d2[i]+=s2[i]; s2.fill(0);
+  if(decayMode==='fade'){
+    diffuse(0,dtA,d2,DIFF_BASE); advect(0,d2,dtA,Vx,Vy); decayArr(d2,0.9982);
+  } else if(decayMode==='still'){
+    dtA.set(d2); advect(0,d2,dtA,Vx,Vy);
+  } else {
+    diffuse(0,dtA,d2,DIFF_SPREAD); advect(0,d2,dtA,Vx,Vy);
+  }
+}
+
+// ════════════════════════════════════════════
+//  Colors
+// ════════════════════════════════════════════
+let col1={r:255,g:48,b:96}, col2={r:0,g:200,b:255};
+const hexToRgb=h=>{const n=parseInt(h.slice(1),16);return{r:(n>>16)&255,g:(n>>8)&255,b:n&255};};
+const rgbToHex=c=>'#'+[c.r,c.g,c.b].map(v=>v.toString(16).padStart(2,'0')).join('');
+
+// ════════════════════════════════════════════
+//  Render
+// ════════════════════════════════════════════
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const img=ctx.createImageData(N,N);
+const px=img.data;
+const BG=[4,4,14];
+
+function render(){
+  const sc=1.12;
+  const c1r=col1.r*sc,c1g=col1.g*sc,c1b=col1.b*sc;
+  const c2r=col2.r*sc,c2g=col2.g*sc,c2b=col2.b*sc;
+  let sum1=0,sum2=0;
+  for(let j=1;j<=N;j++) for(let i=1;i<=N;i++){
+    const v1=d1[IX(i,j)],v2=d2[IX(i,j)];
+    const k=(j-1)*N+(i-1);
+    px[k*4]  =Math.min(255,(BG[0]+c1r*v1+c2r*v2)|0);
+    px[k*4+1]=Math.min(255,(BG[1]+c1g*v1+c2g*v2)|0);
+    px[k*4+2]=Math.min(255,(BG[2]+c1b*v1+c2b*v2)|0);
+    px[k*4+3]=255;
+    sum1+=v1;sum2+=v2;
+  }
+  ctx.putImageData(img,0,0);
+  const tot=N*N;
+  document.getElementById('fill1').style.height=Math.min(100,(sum1/tot)*820)+'%';
+  document.getElementById('fill2').style.height=Math.min(100,(sum2/tot)*820)+'%';
+}
+
+// ════════════════════════════════════════════
+//  Canvas sizing
+// ════════════════════════════════════════════
+function resizeCanvas(){
+  const isMobile=window.innerWidth<=840;
+  if(isMobile){
+    const s=window.innerWidth;
+    canvas.style.width=s+'px'; canvas.style.height=s+'px';
+  } else {
+    // desktop: fit height minus some margin
+    const s=Math.min(540, window.innerHeight-40, window.innerWidth-186-50-40);
+    canvas.style.width=s+'px'; canvas.style.height=s+'px';
+    // sync side panel heights
+    document.getElementById('left-panel-desktop').style.height=s+'px';
+    document.querySelector('.right-panel').style.height=s+'px';
+  }
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ════════════════════════════════════════════
+//  Init
+// ════════════════════════════════════════════
+function addBlob(dye,cx,cy,r,str){
+  for(let j=1;j<=N;j++) for(let i=1;i<=N;i++){
+    const d=Math.sqrt((i-cx)**2+(j-cy)**2);
+    if(d<r) dye[IX(i,j)]+=str*(1-d/r)**2;
+  }
+}
+function initFluid(){
+  d1.fill(0);d2.fill(0);Vx.fill(0);Vy.fill(0);
+  Vtx.fill(0);Vty.fill(0);s1.fill(0);s2.fill(0);Fx.fill(0);Fy.fill(0);
+  addBlob(d1,44,64,30,1.0);addBlob(d1,55,40,18,0.6);
+  addBlob(d2,84,64,30,1.0);addBlob(d2,73,88,18,0.6);
+}
+initFluid();
+
+// ════════════════════════════════════════════
+//  Interaction
+// ════════════════════════════════════════════
+let isDown=false,lastGX=0,lastGY=0,tool='pour1';
+
+function toGrid(cx,cy){
+  const r=canvas.getBoundingClientRect();
+  return[
+    Math.max(2,Math.min(N-1,Math.round((cx-r.left)/r.width*N+0.5))),
+    Math.max(2,Math.min(N-1,Math.round((cy-r.top)/r.height*N+0.5)))
+  ];
+}
+
+function applyTool(gx,gy,dvx,dvy){
+  const vf=1/(1+VISC*2500);
+  const VSCALE=250*vf, DSCALE=0.30;
+  const R=tool==='stir'?5:4;
+  for(let dj=-R;dj<=R;dj++) for(let di=-R;di<=R;di++){
+    const ni=gx+di,nj=gy+dj;
+    if(ni<1||ni>N||nj<1||nj>N) continue;
+    const dist=Math.sqrt(di*di+dj*dj);
+    if(dist>R) continue;
+    const w=(1-dist/R)**1.5;
+    Fx[IX(ni,nj)]+=dvx*VSCALE*w;
+    Fy[IX(ni,nj)]+=dvy*VSCALE*w;
+    if(tool==='pour1') s1[IX(ni,nj)]+=DSCALE*w;
+    if(tool==='pour2') s2[IX(ni,nj)]+=DSCALE*w;
+  }
+}
+
+function onDown(cx,cy){isDown=true;[lastGX,lastGY]=toGrid(cx,cy);if(tool!=='stir')spawnRipple(cx,cy);}
+function onMove(cx,cy){
+  if(!isDown)return;
+  const[gx,gy]=toGrid(cx,cy);
+  const dvx=gx-lastGX,dvy=gy-lastGY;
+  if(dvx||dvy)applyTool(gx,gy,dvx,dvy);
+  lastGX=gx;lastGY=gy;
+}
+function onUp(){isDown=false;}
+
+canvas.addEventListener('mousedown',e=>{e.preventDefault();onDown(e.clientX,e.clientY);});
+window.addEventListener('mousemove',e=>onMove(e.clientX,e.clientY));
+window.addEventListener('mouseup',()=>onUp());
+canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];onDown(t.clientX,t.clientY);},{passive:false});
+canvas.addEventListener('touchmove', e=>{e.preventDefault();const t=e.touches[0];onMove(t.clientX,t.clientY);},{passive:false});
+canvas.addEventListener('touchend',()=>onUp());
+
+// ════════════════════════════════════════════
+//  Ripple
+// ════════════════════════════════════════════
+function spawnRipple(x,y){
+  const el=document.createElement('div');
+  el.className='ripple-el';
+  el.style.left=x+'px';el.style.top=y+'px';
+  el.style.color=tool==='pour1'?rgbToHex(col1):rgbToHex(col2);
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),480);
+}
+
+// ════════════════════════════════════════════
+//  Cursor
+// ════════════════════════════════════════════
+const dot=document.getElementById('cursor-dot');
+function updateCursor(){
+  if(tool==='stir'){
+    dot.style.width='20px';dot.style.height='20px';
+    dot.style.background='transparent';
+    dot.style.boxShadow='0 0 0 1.5px #55667788,0 0 10px #22334455';
+  } else {
+    const hex=rgbToHex(tool==='pour1'?col1:col2);
+    dot.style.width='13px';dot.style.height='13px';
+    dot.style.background=hex;
+    dot.style.boxShadow=`0 0 14px ${hex}bb`;
+  }
+}
+window.addEventListener('mousemove',e=>{
+  dot.style.left=e.clientX+'px';dot.style.top=e.clientY+'px';dot.style.opacity='1';
+});
+document.addEventListener('mouseleave',()=>{dot.style.opacity='0';});
+
+// ════════════════════════════════════════════
+//  Tool selection (desktop + mobile synced)
+// ════════════════════════════════════════════
+function setTool(t){
+  tool=t;
+  // desktop
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+  // mobile
+  document.querySelectorAll('.mob-btn[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===t));
+  updateCursor();
+}
+document.querySelectorAll('.tool-btn').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
+document.querySelectorAll('.mob-btn[data-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
+
+// ════════════════════════════════════════════
+//  Decay mode
+// ════════════════════════════════════════════
+function setDecay(mode){
+  decayMode=mode;
+  document.querySelectorAll('.decay-btn').forEach(b=>b.classList.toggle('active',b.dataset.decay===mode));
+  document.querySelectorAll('.mob-btn[data-decay]').forEach(b=>b.classList.toggle('active',b.dataset.decay===mode));
+}
+document.querySelectorAll('.decay-btn').forEach(b=>b.addEventListener('click',()=>setDecay(b.dataset.decay)));
+document.querySelectorAll('.mob-btn[data-decay]').forEach(b=>b.addEventListener('click',()=>setDecay(b.dataset.decay)));
+setDecay('still');
+
+// ════════════════════════════════════════════
+//  Colors
+// ════════════════════════════════════════════
+function applyCol1(hex){
+  col1=hexToRgb(hex);
+  // desktop
+  const d1e=document.getElementById('dot1d');
+  if(d1e){d1e.style.background=hex;d1e.style.boxShadow=`0 0 9px ${hex}55`;}
+  const h1d=document.getElementById('hex1d'); if(h1d){h1d.style.color=hex;h1d.textContent=hex;}
+  const ti1d=document.getElementById('ti1d'); if(ti1d){ti1d.style.background=hex;ti1d.style.boxShadow=`0 0 7px ${hex}66`;}
+  const ml1=document.getElementById('ml1');   if(ml1) ml1.style.color=hex;
+  const f1=document.getElementById('fill1');  if(f1)  f1.style.background=`linear-gradient(to top,${hex},transparent)`;
+  // mobile
+  const d1m=document.getElementById('dot1m'); if(d1m){d1m.style.background=hex;d1m.style.boxShadow=`0 0 9px ${hex}55`;}
+  const h1m=document.getElementById('hex1m'); if(h1m){h1m.style.color=hex;h1m.textContent='液体 1 — '+hex;}
+  const mti1=document.getElementById('mti1'); if(mti1) mti1.style.color=hex;
+  document.documentElement.style.setProperty('--c1',hex);
+  updateCursor();
+}
+function applyCol2(hex){
+  col2=hexToRgb(hex);
+  const d2e=document.getElementById('dot2d');
+  if(d2e){d2e.style.background=hex;d2e.style.boxShadow=`0 0 9px ${hex}55`;}
+  const h2d=document.getElementById('hex2d'); if(h2d){h2d.style.color=hex;h2d.textContent=hex;}
+  const ti2d=document.getElementById('ti2d'); if(ti2d){ti2d.style.background=hex;ti2d.style.boxShadow=`0 0 7px ${hex}66`;}
+  const ml2=document.getElementById('ml2');   if(ml2) ml2.style.color=hex;
+  const f2=document.getElementById('fill2');  if(f2)  f2.style.background=`linear-gradient(to top,${hex},transparent)`;
+  const d2m=document.getElementById('dot2m'); if(d2m){d2m.style.background=hex;d2m.style.boxShadow=`0 0 9px ${hex}55`;}
+  const h2m=document.getElementById('hex2m'); if(h2m){h2m.style.color=hex;h2m.textContent='液体 2 — '+hex;}
+  const mti2=document.getElementById('mti2'); if(mti2) mti2.style.color=hex;
+  document.documentElement.style.setProperty('--c2',hex);
+  updateCursor();
+}
+
+applyCol1('#ff3060'); applyCol2('#00c8ff');
+
+['cp1d','cp1m'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('input', e=>{applyCol1(e.target.value);document.getElementById('cp1d').value=e.target.value;document.getElementById('cp1m').value=e.target.value;});
+  el.addEventListener('change',e=>{applyCol1(e.target.value);});
+});
+['cp2d','cp2m'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('input', e=>{applyCol2(e.target.value);document.getElementById('cp2d').value=e.target.value;document.getElementById('cp2m').value=e.target.value;});
+  el.addEventListener('change',e=>{applyCol2(e.target.value);});
+});
+
+// ════════════════════════════════════════════
+//  Viscosity (synced desktop + mobile)
+// ════════════════════════════════════════════
+const VISC_TABLE=[
+  {name:'清水',visc:0.000004},{name:'薄油',visc:0.000012},
+  {name:'牛奶',visc:0.000030},{name:'轻粘',visc:0.000060},
+  {name:'中等',visc:0.000100},{name:'浓稠',visc:0.000180},
+  {name:'糖浆',visc:0.000320},{name:'奶油',visc:0.000560},
+  {name:'果冻',visc:0.000900},{name:'蜂蜜',visc:0.001500},
+];
+
+function setVisc(v){
+  const p=VISC_TABLE[v-1];
+  VISC=p.visc;
+  const label=p.name, num=v+' / 10';
+  ['viscNameD','viscNameM'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=label;});
+  ['viscNumD','viscNumM'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=num;});
+  document.getElementById('viscSliderD').value=v;
+  document.getElementById('viscSliderM').value=v;
+}
+
+document.getElementById('viscSliderD').addEventListener('input',function(){setVisc(parseInt(this.value));});
+document.getElementById('viscSliderM').addEventListener('input',function(){setVisc(parseInt(this.value));});
+
+// ════════════════════════════════════════════
+//  Reset / Clear
+// ════════════════════════════════════════════
+['initBtnD','initBtnM'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener('click',initFluid);});
+['clearBtnD','clearBtnM'].forEach(id=>{
+  const e=document.getElementById(id);
+  if(e)e.addEventListener('click',()=>{d1.fill(0);d2.fill(0);Vx.fill(0);Vy.fill(0);});
+});
+
+// ════════════════════════════════════════════
+//  Mobile tabs
+// ════════════════════════════════════════════
+document.querySelectorAll('.mob-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    const t=tab.dataset.tab;
+    document.querySelectorAll('.mob-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===t));
+    document.querySelectorAll('.mob-pane').forEach(p=>p.classList.toggle('active',p.id==='tab-'+t));
+  });
+});
+
+// ════════════════════════════════════════════
+//  Loop
+// ════════════════════════════════════════════
+let lastTime=0;
+(function loop(ts){
+  if(ts-lastTime>=14){fluidStep();render();lastTime=ts;}
+  requestAnimationFrame(loop);
+})(0);
+</script>
+</body>
+</html>
