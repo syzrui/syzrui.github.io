@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CYBER RUN</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;touch-action:none;}
+html,body{width:100%;height:100%;background:#000;overflow:hidden;font-family:'Courier New',monospace;}
+#game-wrap{position:fixed;top:0;left:0;transform-origin:top left;}
+canvas{display:block;}
+#ui{position:absolute;top:0;left:0;width:100%;z-index:10;pointer-events:none;}
+#score-bar{display:flex;justify-content:space-between;align-items:center;padding:6px 16px;background:rgba(0,0,0,0.62);}
+#score{color:#fff;font-size:15px;font-weight:bold;letter-spacing:2px;}
+#best{color:#ffd700;font-size:12px;}
+#lives{display:flex;gap:4px;}
+.heart{color:#ff4466;font-size:14px;}
+#status-bar{display:flex;gap:8px;padding:3px 16px;}
+.badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;letter-spacing:1px;}
+#combo-badge{background:rgba(255,200,0,.18);color:#ffd700;border:1px solid #ffd700;display:none;}
+#speed-badge{background:rgba(0,200,255,.12);color:#00cfff;border:1px solid #00cfff;}
+#touch-btns{position:absolute;bottom:0;left:0;width:100%;height:28%;display:flex;z-index:9;pointer-events:all;}
+.tbtn{flex:1;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.2);font-size:20px;letter-spacing:1px;border-top:1px solid rgba(255,255,255,.07);user-select:none;-webkit-user-select:none;}
+.tbtn:active{background:rgba(255,255,255,.07);}
+#overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(4,4,28,.92);z-index:20;}
+#overlay h1{color:#fff;font-size:32px;letter-spacing:8px;margin-bottom:4px;text-shadow:0 0 28px #00cfff;}
+#overlay .sub{color:#7799bb;font-size:12px;letter-spacing:2px;margin-bottom:16px;}
+#overlay .ctrl{color:#bbb;font-size:11px;line-height:2.1;text-align:center;background:rgba(255,255,255,.05);padding:12px 22px;border-radius:10px;border:1px solid rgba(255,255,255,.1);margin-bottom:16px;}
+#start-btn{padding:11px 38px;background:linear-gradient(135deg,#0055dd,#00cfff);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;letter-spacing:3px;pointer-events:all;box-shadow:0 0 22px rgba(0,207,255,.45);}
+#start-btn:active{transform:scale(.97);}
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <canvas id="c"></canvas>
+  <div id="ui">
+    <div id="score-bar">
+      <div id="score">SCORE: 0</div>
+      <div id="lives"></div>
+      <div id="best">BEST: 0</div>
+    </div>
+    <div id="status-bar">
+      <div class="badge" id="combo-badge"></div>
+      <div class="badge" id="speed-badge">SPD 5.0</div>
+    </div>
+  </div>
+  <div id="touch-btns">
+    <div class="tbtn" id="tbtn-jump">↑ 跳跃</div>
+    <div class="tbtn" id="tbtn-crouch">↓ 蹲下</div>
+  </div>
+  <div id="overlay">
+    <h1>CYBER RUN</h1>
+    <div class="sub">霓虹都市跑酷</div>
+    <div class="ctrl">
+      ↑/W/空格 跳跃 &nbsp;|&nbsp; 再按 二段跳<br>
+      ↓/S 蹲下 &nbsp;|&nbsp; 空中蹲下 急速下坠<br>
+      蓝墙须蹲过 &nbsp;|&nbsp; 红怪碰到扣血<br>
+      绿台可站上 &nbsp;|&nbsp; 红缝坠崖即死<br>
+      手机：左半屏跳，右半屏蹲
+    </div>
+    <button id="start-btn">开 始 游 戏</button>
+  </div>
+</div>
+<script>
+// ─── 画布 & 逻辑分辨率 ───────────────────────────
+const wrap   = document.getElementById('game-wrap');
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const GW=800, GH=450;
+canvas.width=GW; canvas.height=GH;
+
+function applyOrientation(){
+  const sw=window.innerWidth, sh=window.innerHeight;
+  if(sh>sw && sw<700){
+    // 竖屏手机：旋转90°
+    const scale=sw/GH;
+    wrap.style.width=GW+'px'; wrap.style.height=GH+'px';
+    wrap.style.transform=`translate(${sw}px,${(sh-GW*scale)/2}px) rotate(90deg) scale(${scale})`;
+  } else {
+    const scale=Math.min(sw/GW,sh/GH);
+    wrap.style.width=GW+'px'; wrap.style.height=GH+'px';
+    wrap.style.transform=`translate(${(sw-GW*scale)/2}px,${(sh-GH*scale)/2}px) scale(${scale})`;
+  }
+}
+applyOrientation();
+window.addEventListener('resize',applyOrientation);
+
+// ─── 常量 ───────────────────────────────────────
+const W=GW, H=GH;
+const BASE_GY = 340;          // 主地面 Y
+const GRAVITY = 0.52;
+const FAST_FALL = 1.7;
+const PW=28, PH=46, CH=22;   // 宽、站高、蹲高
+
+const WALL_COL   ='#4466ff';
+const MON_COL    ='#ff2244';
+const FLY_COL    ='#ff8800';
+const PLAT_COL   ='#00cc88';
+
+// ─── 状态 ───────────────────────────────────────
+const S={IDLE:0,RUN:1,DEAD:2};
+let state=S.IDLE;
+let score,best=0,lives,gspeed,frame;
+let combo,comboT,shakeT;
+let pBuf=[],cBuf=[],bgLayers=[];
+let segs=[];      // 地面/平台/悬崖 segments
+let obs=[];       // 障碍+怪物
+let oTimer=0,cTimer=0;
+let P={};
+
+// ─── 地面分段 ────────────────────────────────────
+/*
+  每条 segment: { type:'ground'|'platform'|'cliff', x, w, y }
+  ground  : 主地面，y=BASE_GY
+  platform: 浮空平台，y < BASE_GY，宽80~120
+  cliff   : 悬崖缺口，没有实体，玩家坠入即死
+*/
+function initSegs(){
+  segs=[{type:'ground',x:-50,w:W+150,y:BASE_GY}];
+}
+
+function difficulty(){ return Math.min(3,Math.floor(score/1200)); }
+
+function appendSeg(startX){
+  const d=difficulty();
+  // 悬崖概率
+  const cp=[0,0.07,0.13,0.20][d];
+  if(Math.random()<cp){
+    const gw=70+Math.random()*55;
+    segs.push({type:'cliff',x:startX,w:gw,y:BASE_GY});
+    startX+=gw;
+  }
+  // 普通地面
+  const gw=200+Math.random()*250;
+  segs.push({type:'ground',x:startX,w:gw,y:BASE_GY});
+  // 浮空平台（只在地面段上方，且和悬崖无关）
+  if(d>=1 && Math.random()<0.22){
+    const pw=80+Math.random()*55;
+    // 保证平台在地面段内部，有足够空间
+    const minX=startX+40, maxX=startX+gw-pw-40;
+    if(maxX>minX){
+      const px=minX+Math.random()*(maxX-minX);
+      const py=BASE_GY-90-Math.random()*50;
+      segs.push({type:'platform',x:px,w:pw,y:py});
+    }
+  }
+  return startX+gw;
+}
+
+function updateSegs(){
+  for(const s of segs) s.x-=gspeed;
+  segs=segs.filter(s=>s.x+s.w>-50);
+  const last=segs.filter(s=>s.type==='ground').slice(-1)[0];
+  if(!last||last.x+last.w<W+250) appendSeg(last?last.x+last.w:W+10);
+}
+
+// ─── 物理：获取玩家脚下的地面 ───────────────────
+// 只在 px~px+pw 水平范围内，找在玩家当前Y下方（或接触）最高的实体面
+// 关键修正：必须确保 segment 在玩家X范围内有重叠，
+// 并且平台的 y 要在玩家脚 (P.y+playerH) 附近，不能隔得太远
+function groundUnder(){
+  const px=P.x+4, pw=PW-8;
+  const ph=P.crouch?CH:PH;
+  // 脚底位置：蹲下时身体顶部不变(P.y)，脚底始终是 P.y+ph
+  // 但为了防止蹲下时脚底上移穿地，用实际脚底位置，
+  // 并放宽过滤阈值（允许地面在脚底上方最多ph+4，覆盖蹲下切换的整个高度差）
+  const footY = P.y + ph;
+  const maxAbove = PH + 6;  // 允许地面比脚底高最多这么多（覆盖站/蹲高度差）
+
+  let best=null;
+  for(const s of segs){
+    if(s.type==='cliff') continue;
+    if(s.x+s.w<=px || s.x>=px+pw) continue;
+    // 地面必须在脚底上方不超过maxAbove，或在脚底下方（正常落地）
+    if(s.y < footY - maxAbove) continue;
+    if(best===null || s.y<best) best=s.y;
+  }
+  return best;
+}
+
+// 是否正在悬崖上方（脚下有 cliff 且没有实体地面）
+function overCliff(){
+  const px=P.x+4,pw=PW-8;
+  for(const s of segs){
+    if(s.type!=='cliff') continue;
+    if(s.x+s.w<=px||s.x>=px+pw) continue;
+    return true;
+  }
+  return false;
+}
+
+// ─── 障碍 / 怪物生成 ────────────────────────────
+function spawnObs(){
+  // 找最后一个障碍的 x
+  const last=obs[obs.length-1];
+  const minGap=Math.max(160,280-difficulty()*20);
+  if(last && W-last.x < minGap) return;
+
+  // 找右侧最近的实体地面
+  const gs=segs.filter(s=>s.type==='ground'&&s.x+s.w>W+20&&s.x<W+80);
+  if(!gs.length) return;
+  const gy=gs[0].y;
+
+  const d=difficulty();
+  // 权重: 地面怪(35%) 飞怪(28%) 双怪组合(20%) 竖墙(10%) 高空横墙(7%)
+  const weights=[28,22,18,22,10];
+  const totalW=weights.reduce((a,b)=>a+b,0);
+  let r=Math.random()*totalW, type=0;
+  for(let i=0;i<weights.length;i++){r-=weights[i];if(r<=0){type=i;break;}}
+  if(d===0 && type>1) type=Math.random()<0.6?0:1;
+
+  switch(type){
+    case 0: // 地面怪（高概率连刷）
+      obs.push({k:'monster',x:W+20,y:gy-40,w:34,h:40,flying:false});
+      if(Math.random()<0.45)
+        obs.push({k:'monster',x:W+75,y:gy-36,w:28,h:36,flying:false});
+      if(d>=2&&Math.random()<0.30)
+        obs.push({k:'monster',x:W+130,y:gy-36,w:28,h:36,flying:false});
+      break;
+    case 1: { // 飞行怪
+      // 高飞(50%): 贴近地面CH高度，玩家须蹲下；低飞(50%): 跳过或蹲过均可
+      const highFly = Math.random()<0.5;
+      const flyY = highFly
+        ? gy - CH - 35 - Math.random()*20   // 高飞：离地很近，蹲才能过
+        : gy - PH - 50 - Math.random()*40;  // 低飞：在头顶上方，跳过
+      obs.push({k:'monster',x:W+20,y:flyY,w:32,h:30,flying:true});
+      if(Math.random()<0.55)
+        obs.push({k:'monster',x:W+10,y:gy-40,w:30,h:38,flying:false});
+      if(d>=2&&Math.random()<0.35){
+        const flyY2 = gy - CH - 32 - Math.random()*18;
+        obs.push({k:'monster',x:W+80,y:flyY2,w:28,h:28,flying:true});
+      }
+      break; }
+    case 2: // 组合：地面怪+飞怪同屏
+      obs.push({k:'monster',x:W+20,y:gy-40,w:32,h:40,flying:false});
+      obs.push({k:'monster',x:W+20,y:gy-CH-32-Math.random()*20,w:30,h:28,flying:true});
+      if(d>=1&&Math.random()<0.4)
+        obs.push({k:'monster',x:W+90,y:gy-38,w:28,h:38,flying:false});
+      break;
+    case 3: // 竖直墙（顶天立地，只留蹲身缺口）
+      obs.push({k:'wall',x:W+20,y:0,w:22,h:gy-(CH+8)});
+      if(d>=1&&Math.random()<0.4)
+        obs.push({k:'monster',x:W+80,y:gy-PH-48,w:28,h:26,flying:true});
+      break;
+    case 4: // 高空横墙+怪
+      obs.push({k:'hwall',x:W+20,y:gy-PH-22,w:72,h:18});
+      if(d>=1&&Math.random()<0.5)
+        obs.push({k:'monster',x:W+90,y:gy-40,w:30,h:40,flying:false});
+      break;
+  }
+}
+
+// ─── 玩家 ────────────────────────────────────────
+function newPlayer(){
+  P={x:100,y:BASE_GY-PH,vy:0,vx:0,jumps:0,crouch:false,
+     dead:false,inv:0,trail:[],onGround:false};
+}
+
+// ─── 重置 ────────────────────────────────────────
+function reset(){
+  score=0;lives=3;gspeed=5;frame=0;
+  combo=0;comboT=0;shakeT=0;
+  obs=[];cBuf=[];pBuf=[];
+  oTimer=0;cTimer=0;
+  newPlayer();initSegs();makeBG();renderLives();
+}
+
+// ─── 背景 ────────────────────────────────────────
+function makeBG(){
+  bgLayers=[
+    {spd:.06,items:mkB(9,W/4.5,H*.04,H*.34,45,80,200,80)},
+    {spd:.20,items:mkB(6,W/3.2,H*.08,H*.24,30,55,260,60)},
+    {spd:.44,items:mkB(4,W/2.3,H*.10,H*.17,20,40,180,40)},
+  ];
+}
+function mkB(n,gap,yMin,yRange,wMin,wAdd,hBase,hRange){
+  return Array.from({length:n},(_,i)=>({
+    x:i*gap,w:wMin+Math.random()*wAdd,h:60+Math.random()*130,
+    hue:hBase+Math.random()*hRange
+  }));
+}
+
+// ─── 粒子 ────────────────────────────────────────
+function burst(x,y,col,n=10){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,s=1.5+Math.random()*4;
+    pBuf.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1,col,life:35+Math.random()*20,max:55,r:1.5+Math.random()*2.5});
+  }
+}
+
+// ─── 输入 ────────────────────────────────────────
+function doJump(){
+  if(P.dead||state!==S.RUN) return;
+  if(P.jumps<2){
+    P.vy=P.jumps===0?-13:-11;
+    P.crouch=false;P.jumps++;
+    burst(P.x+PW/2,P.y+PH,P.jumps===1?'#00cfff':'#cc00ff',7);
+  }
+}
+function doCrouch(on){
+  if(P.dead||state!==S.RUN) return;
+  P.crouch=on;
+  if(on&&!P.onGround&&P.vy<2) P.vy=3; // 空中蹲下加速下坠
+}
+
+const held={};
+window.addEventListener('keydown',e=>{
+  if(held[e.code]) return; held[e.code]=true;
+  if(['ArrowUp','KeyW','Space'].includes(e.code)){if(state!==S.RUN){startGame();return;}doJump();e.preventDefault();}
+  if(['ArrowDown','KeyS'].includes(e.code)){if(state!==S.RUN){startGame();return;}doCrouch(true);e.preventDefault();}
+});
+window.addEventListener('keyup',e=>{
+  held[e.code]=false;
+  if(['ArrowDown','KeyS'].includes(e.code)) doCrouch(false);
+});
+document.getElementById('tbtn-jump').addEventListener('touchstart',e=>{doJump();e.preventDefault();},{passive:false});
+document.getElementById('tbtn-crouch').addEventListener('touchstart',e=>{doCrouch(true);e.preventDefault();},{passive:false});
+document.getElementById('tbtn-crouch').addEventListener('touchend',e=>{doCrouch(false);e.preventDefault();},{passive:false});
+
+// ─── 开始/结束 ───────────────────────────────────
+document.getElementById('start-btn').addEventListener('click',e=>{e.stopPropagation();startGame();});
+function startGame(){document.getElementById('overlay').style.display='none';reset();state=S.RUN;}
+function takeDamage(){
+  lives--;renderLives();shakeT=14;
+  burst(P.x+PW/2,P.y+PH/2,'#ff3366',20);
+  P.inv=80;
+  if(lives<=0){P.dead=true;state=S.DEAD;if(score>best)best=score;setTimeout(showOver,800);}
+}
+function showOver(){
+  const ov=document.getElementById('overlay');
+  ov.querySelector('h1').textContent='GAME OVER';
+  ov.querySelector('.sub').textContent=`得分 ${score}　|　最高 ${best}`;
+  document.getElementById('best').textContent=`BEST: ${best}`;
+  document.getElementById('start-btn').textContent='再 来 一 局';
+  ov.style.display='flex';
+}
+function renderLives(){
+  document.getElementById('lives').innerHTML=[0,1,2].map(i=>`<span class="heart">${i<lives?'♥':'♡'}</span>`).join('');
+}
+
+// ─── 碰撞盒 ──────────────────────────────────────
+function prect(){const h=P.crouch?CH:PH;return{x:P.x+4,y:P.y+2,w:PW-8,h:h-4};}
+function overlap(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+
+// ─── UPDATE ──────────────────────────────────────
+function update(){
+  if(state!==S.RUN) return;
+  frame++;score++;
+  gspeed=Math.min(10,5+score/5500);
+
+  // ── 物理 ──
+  const grav=(P.crouch&&!P.onGround)?GRAVITY*FAST_FALL:GRAVITY;
+  P.vy+=grav;
+  if(P.vy>18) P.vy=18; // 最大下落速度限制
+
+  // 先Y轴移动
+  P.y+=P.vy;
+
+  // ── 地面/平台落地检测 ──
+  // 只在向下移动时检测落地（防止向上穿平台）
+  const ph=P.crouch?CH:PH;
+  P.onGround=false;
+
+  if(P.vy>=0){
+    const gy=groundUnder();
+    if(gy!==null){
+      const ph=P.crouch?CH:PH;
+      const groundTop=gy-ph;
+      if(P.y>=groundTop){
+        P.y=groundTop;
+        P.vy=0;
+        P.jumps=0;
+        P.onGround=true;
+      }
+    }
+  }
+
+  // 蹲下/站起时，若在地面上，立即修正Y位置防止穿地或浮空
+  if(P.onGround){
+    const gy=groundUnder();
+    if(gy!==null){
+      const ph=P.crouch?CH:PH;
+      P.y=gy-ph;
+    }
+  }
+
+  // ── 悬崖死亡判定 ──
+  // 只有在悬崖上方 且 真正坠落（脚底超过 BASE_GY+60）才死
+  if(!P.onGround && P.y+ph > H+60){
+    lives=1; takeDamage();
+  }
+
+  // ── X轴：推回系统 ──
+  // 玩家 X 正常向右偏移（被障碍物向左推），然后弹回
+  // 玩家X固定在100，但用 vx 模拟被推后缓慢弹回
+  if(P.vx!==0){
+    P.x+=P.vx;
+    // 弹性恢复：每帧向100靠拢
+    const target=100;
+    P.vx+=(target-P.x)*0.08;
+    P.vx*=0.82;
+    if(Math.abs(P.vx)<0.1&&Math.abs(P.x-target)<0.5){P.x=target;P.vx=0;}
+  }
+  // 左边界挤压死亡：被怪物/墙持续推到屏幕最左 → 扣血并弹回
+  if(P.x<=30){
+    P.x=30;
+    if(P.vx<-0.5){   // 还在被向左推
+      P.vx=8;         // 强制向右弹
+      takeDamage();
+    }
+  }
+  if(P.x>200) P.x=200;
+
+  if(P.inv>0) P.inv--;
+
+  // 残影
+  P.trail.unshift({x:P.x,y:P.y,h:ph});
+  if(P.trail.length>7) P.trail.pop();
+
+  // ── 更新地面 ──
+  updateSegs();
+
+  // ── 障碍生成 ──
+  oTimer++;
+  // 间隔随难度缩短，但有下限保证可玩性
+  const si=Math.max(40,140-difficulty()*22);
+  if(oTimer>=si){spawnObs();oTimer=0;}
+
+  // ── 金币 ──
+  cTimer++;
+  if(cTimer>=110){spawnCoin();cTimer=0;}
+
+  // ── 移动障碍 ──
+  for(const o of obs) o.x-=gspeed;
+  obs=obs.filter(o=>o.x+o.w>-40);
+
+  for(const c of cBuf) c.x-=gspeed;
+  cBuf=cBuf.filter(c=>c.x>-20);
+
+  for(const p of pBuf){p.x+=p.vx;p.y+=p.vy;p.vy+=0.12;p.life--;}
+  pBuf=pBuf.filter(p=>p.life>0);
+
+  if(comboT>0)comboT--;else combo=0;
+  if(shakeT>0)shakeT--;
+
+  if(!P.dead) checkCollisions();
+
+  document.getElementById('score').textContent=`SCORE: ${score}`;
+  document.getElementById('speed-badge').textContent=`SPD ${gspeed.toFixed(1)}`;
+  const cb=document.getElementById('combo-badge');
+  if(combo>2){cb.style.display='';cb.textContent=`COMBO x${combo}`;}
+  else cb.style.display='none';
+}
+
+function spawnCoin(){
+  const gs=segs.filter(s=>s.type==='ground'&&s.x+s.w>W+20&&s.x<W+120);
+  if(!gs.length) return;
+  cBuf.push({x:W+40+Math.random()*80,y:gs[0].y-58-Math.random()*40,r:7,hue:180+Math.random()*60,got:false});
+}
+
+// ─── 碰撞检测 ────────────────────────────────────
+function checkCollisions(){
+  if(P.inv>0) return;
+  const r=prect();
+
+  for(const o of obs){
+    const ob={x:o.x,y:o.y,w:o.w,h:o.h};
+    if(!overlap(r,ob)) continue;
+
+    if(o.k==='monster'){
+      takeDamage(); return;
+    }
+    if(o.k==='wall'||o.k==='hwall'){
+      // 墙：不扣血，但向左推开玩家
+      // 计算推开量
+      const overlapX=(r.x+r.w)-ob.x; // 玩家右侧超入墙的距离
+      if(overlapX>0&&overlapX<r.w){
+        // 侧面撞墙 → 向左推
+        P.vx-=overlapX*0.6;
+        if(P.vx<-8) P.vx=-8;
+      } else {
+        // 从上方压墙（hwall）→ 轻微推开
+        P.vx-=2;
+      }
+    }
+  }
+
+  for(const c of cBuf){
+    if(!c.got&&Math.hypot(P.x+PW/2-c.x,P.y+PH/2-c.y)<c.r+14){
+      c.got=true;score+=10;combo++;comboT=120;
+      burst(c.x,c.y,`hsl(${c.hue},100%,70%)`,12);
+    }
+  }
+}
+
+// ─── DRAW ─────────────────────────────────────────
+function drawBG(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#010110');g.addColorStop(.65,'#050428');g.addColorStop(1,'#010110');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  for(let i=0;i<70;i++) ctx.fillRect((i*173.7+frame*.1)%W,(i*91.3)%(BASE_GY*.85),i%9===0?2:1,i%9===0?2:1);
+}
+
+function drawBuildings(){
+  for(const layer of bgLayers){
+    for(const b of layer.items){
+      b.x-=gspeed*layer.spd;
+      if(b.x+b.w<0){b.x=W+20;b.hue=180+Math.random()*130;b.w=40+Math.random()*85;b.h=60+Math.random()*140;}
+      const alpha=.09+layer.spd*.2;
+      ctx.fillStyle=`hsla(${b.hue},55%,26%,${alpha})`;
+      ctx.fillRect(b.x,BASE_GY-b.h,b.w,b.h);
+      ctx.fillStyle=`hsla(${b.hue},80%,65%,${alpha*2})`;
+      for(let wy=BASE_GY-b.h+8;wy<BASE_GY-6;wy+=13)
+        for(let wx=b.x+5;wx<b.x+b.w-7;wx+=10)
+          if((wx+wy+frame)%5>1) ctx.fillRect(wx,wy,4,6);
+    }
+  }
+}
+
+function drawGround(){
+  // 深渊背景
+  ctx.fillStyle='#000a14';
+  ctx.fillRect(0,BASE_GY,W,H-BASE_GY);
+
+  // 悬崖区域：炙热深渊
+  for(const s of segs){
+    if(s.type!=='cliff') continue;
+    const g=ctx.createLinearGradient(0,s.y,0,H);
+    g.addColorStop(0,'rgba(255,60,0,.15)');g.addColorStop(1,'rgba(120,0,0,.5)');
+    ctx.fillStyle=g;ctx.fillRect(s.x,s.y,s.w,H-s.y);
+    // 熔岩光线
+    ctx.save();ctx.shadowBlur=20;ctx.shadowColor='#ff4400';
+    ctx.strokeStyle='rgba(255,80,0,.4)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(s.x,H-8);ctx.lineTo(s.x+s.w,H-8);ctx.stroke();
+    ctx.restore();
+    // 红色警告边缘
+    ctx.fillStyle='rgba(255,60,0,.6)';
+    ctx.fillRect(s.x,s.y-3,s.w,3);
+  }
+
+  for(const s of segs){
+    if(s.type==='cliff') continue;
+    const col=s.type==='platform'?PLAT_COL:'#00cfff';
+
+    ctx.save();
+    ctx.shadowBlur=10;ctx.shadowColor=col;
+    ctx.strokeStyle=col;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x+s.w,s.y);ctx.stroke();
+    ctx.restore();
+
+    if(s.type==='ground'){
+      const g=ctx.createLinearGradient(0,s.y,0,H);
+      g.addColorStop(0,'rgba(0,207,255,.10)');g.addColorStop(1,'rgba(0,0,20,0)');
+      ctx.fillStyle=g;ctx.fillRect(s.x,s.y,s.w,H-s.y);
+      // 透视网格线
+      const gs2=80,off=(frame*gspeed)%gs2;
+      ctx.strokeStyle='rgba(0,207,255,.07)';ctx.lineWidth=1;
+      for(let x=s.x-off%gs2;x<s.x+s.w+gs2;x+=gs2){
+        const cx=Math.max(s.x,Math.min(s.x+s.w,x));
+        ctx.beginPath();ctx.moveTo(cx,s.y);ctx.lineTo(cx-42,H);ctx.stroke();
+      }
+      // 悬崖边缘三角警示
+      const idx=segs.indexOf(s);
+      const nextS=segs[idx+1];
+      if(nextS&&nextS.type==='cliff'){
+        // 右边缘闪烁警告
+        ctx.fillStyle=`rgba(255,100,0,${0.5+0.4*Math.sin(frame*.12)})`;
+        ctx.beginPath();ctx.moveTo(s.x+s.w,s.y);ctx.lineTo(s.x+s.w-14,s.y);ctx.lineTo(s.x+s.w,s.y-18);ctx.closePath();ctx.fill();
+      }
+    } else {
+      // 平台：画一个有厚度的板子，下方有细柱
+      ctx.fillStyle='rgba(0,204,136,.18)';
+      ctx.fillRect(s.x,s.y,s.w,8);
+      // 细支柱（只到主地面，不超出）
+      ctx.strokeStyle='rgba(0,204,136,.25)';ctx.lineWidth=1.5;
+      ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.moveTo(s.x+s.w/2,s.y+8);ctx.lineTo(s.x+s.w/2,BASE_GY);ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+function drawObs(){
+  for(const o of obs){
+    ctx.save();
+    if(o.k==='wall'){
+      ctx.shadowBlur=14;ctx.shadowColor=WALL_COL;
+      ctx.fillStyle=WALL_COL;ctx.fillRect(o.x,o.y,o.w,o.h);
+      // 纹理线（间距加大避免太密）
+      ctx.fillStyle='rgba(150,180,255,.25)';
+      for(let yy=o.y+6;yy<o.y+o.h-4;yy+=14) ctx.fillRect(o.x+2,yy,o.w-4,2);
+      // 缺口发光提示（底部缺口区域）
+      const gapTop = o.y+o.h;
+      ctx.save();
+      ctx.shadowBlur=16;ctx.shadowColor='#00ffcc';
+      ctx.strokeStyle='rgba(0,255,180,.7)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(o.x,gapTop);ctx.lineTo(o.x+o.w,gapTop);ctx.stroke();
+      ctx.restore();
+      // 蹲下箭头标注在缺口中央
+      ctx.fillStyle='rgba(0,255,180,.9)';ctx.font='bold 11px Courier New';
+      ctx.fillText('↓蹲',o.x+o.w/2-10,gapTop+12);
+    } else if(o.k==='hwall'){
+      ctx.shadowBlur=12;ctx.shadowColor=WALL_COL;
+      ctx.fillStyle=WALL_COL;ctx.fillRect(o.x,o.y,o.w,o.h);
+      ctx.fillStyle='rgba(150,180,255,.3)';
+      ctx.fillRect(o.x+3,o.y+3,o.w-6,4);
+      ctx.fillStyle='rgba(180,200,255,.9)';ctx.font='bold 10px Courier New';
+      ctx.fillText('↓ 蹲下',o.x+o.w/2-18,o.y-5);
+    } else {
+      // 怪物
+      const mc=o.flying?FLY_COL:MON_COL;
+      ctx.shadowBlur=14;ctx.shadowColor=mc;
+      if(o.flying){
+        // 飞行怪：菱形+翅膀
+        ctx.fillStyle=mc;
+        ctx.beginPath();
+        ctx.moveTo(o.x+o.w/2,o.y);
+        ctx.lineTo(o.x+o.w,o.y+o.h/2);
+        ctx.lineTo(o.x+o.w/2,o.y+o.h);
+        ctx.lineTo(o.x,o.y+o.h/2);
+        ctx.closePath();ctx.fill();
+        // 眼睛
+        ctx.fillStyle='#fff';
+        ctx.beginPath();ctx.arc(o.x+o.w/2,o.y+o.h/2,4,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#111';
+        ctx.beginPath();ctx.arc(o.x+o.w/2+Math.sin(frame*.1)*2,o.y+o.h/2,2,0,Math.PI*2);ctx.fill();
+        // 翅膀
+        const wa=Math.sin(frame*.2)*14;
+        ctx.strokeStyle=mc;ctx.lineWidth=2.5;
+        ctx.beginPath();ctx.moveTo(o.x+o.w/2,o.y+o.h/2);ctx.lineTo(o.x-14,o.y+o.h/2+wa);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(o.x+o.w/2,o.y+o.h/2);ctx.lineTo(o.x+o.w+14,o.y+o.h/2+wa);ctx.stroke();
+      } else {
+        // 地面怪：方形身体
+        ctx.fillStyle=mc;ctx.fillRect(o.x,o.y,o.w,o.h);
+        // 爪子
+        ctx.fillStyle='rgba(255,80,0,.9)';
+        ctx.fillRect(o.x-5,o.y+o.h-9,6,9);
+        ctx.fillRect(o.x+o.w-1,o.y+o.h-9,6,9);
+        // 眼睛闪烁
+        ctx.fillStyle=frame%30<18?'#ffee00':'#ff2200';
+        ctx.fillRect(o.x+5,o.y+7,7,7);
+        ctx.fillRect(o.x+o.w-12,o.y+7,7,7);
+        // 嘴
+        ctx.fillStyle='#000';ctx.fillRect(o.x+4,o.y+o.h-13,o.w-8,5);
+        ctx.fillStyle='#fff';
+        for(let tx=o.x+7;tx<o.x+o.w-7;tx+=5) ctx.fillRect(tx,o.y+o.h-13,3,3);
+        // 血条（血量满→绿，受伤→红，这里简化为固定红）
+        ctx.fillStyle='rgba(255,40,40,.7)';
+        ctx.fillRect(o.x,o.y-5,o.w,3);
+      }
+    }
+    ctx.restore();
+  }
+}
+
+function drawCoins(){
+  for(const c of cBuf){
+    if(c.got) continue;
+    const bob=Math.sin(frame*.1)*4;
+    ctx.save();
+    ctx.shadowBlur=13;ctx.shadowColor=`hsl(${c.hue},100%,65%)`;
+    ctx.fillStyle=`hsl(${c.hue},100%,65%)`;
+    ctx.beginPath();ctx.arc(c.x,c.y+bob,c.r+Math.sin(frame*.14)*1.5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.5)';
+    ctx.beginPath();ctx.arc(c.x-2,c.y+bob-2,c.r*.35,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawPlayer(){
+  const h=P.crouch?CH:PH;
+  const py=P.y;
+  const blink=P.inv>0&&Math.floor(P.inv/5)%2===0;
+  if(blink) return;
+  const col=P.inv>0?'#ff4488':'#00cfff';
+
+  // 残影
+  for(let i=0;i<P.trail.length;i++){
+    const t=P.trail[i],a=(i/P.trail.length)*.2;
+    ctx.fillStyle=`rgba(0,207,255,${a})`;ctx.fillRect(t.x,t.y,PW,t.h);
+  }
+
+  ctx.save();ctx.shadowBlur=12;ctx.shadowColor=col;
+
+  if(!P.crouch){
+    const la=P.onGround?Math.sin(frame*.3)*6:0;
+    ctx.fillStyle='#005588';
+    ctx.fillRect(P.x+4,py+h*.6,9,h*.4+la);
+    ctx.fillRect(P.x+PW-13,py+h*.6,9,h*.4-la);
+    const aa=P.onGround?Math.sin(frame*.3+Math.PI)*8:0;
+    ctx.fillStyle='#005588';
+    ctx.fillRect(P.x-6,py+h*.15+aa,7,12);
+    ctx.fillRect(P.x+PW-1,py+h*.15-aa,7,12);
+    ctx.fillStyle=col;ctx.fillRect(P.x+2,py,PW-4,h*.62);
+    ctx.fillStyle='#dff8ff';ctx.fillRect(P.x+4,py-13,20,13);
+    ctx.fillStyle=col;ctx.fillRect(P.x+6,py-11,16,7);
+  } else {
+    ctx.fillStyle=col;ctx.fillRect(P.x+2,py,PW-4,h);
+    ctx.fillStyle='#dff8ff';ctx.fillRect(P.x+4,py-9,20,9);
+    ctx.fillStyle=col;ctx.fillRect(P.x+6,py-7,16,5);
+  }
+
+  // 急速下坠拖尾
+  if(!P.onGround&&P.vy>6){
+    ctx.strokeStyle='rgba(0,207,255,.35)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(P.x+PW/2,py);ctx.lineTo(P.x+PW/2,py-P.vy*2);ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawParticles(){
+  for(const p of pBuf){
+    ctx.globalAlpha=p.life/p.max;ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r*(p.life/p.max),0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawHints(){
+  if(state!==S.RUN) return;
+  if(P.jumps===1){
+    ctx.fillStyle='rgba(180,0,255,.8)';ctx.font='bold 10px Courier New';
+    ctx.fillText('▲ 二段跳',P.x-2,P.y-16);
+  }
+  // 悬崖警告
+  const nearCliff=segs.find(s=>s.type==='cliff'&&s.x>P.x+PW&&s.x<P.x+170);
+  if(nearCliff){
+    ctx.save();ctx.shadowBlur=8;ctx.shadowColor='#ff5500';
+    ctx.fillStyle=`rgba(255,100,0,${0.7+0.3*Math.sin(frame*.15)})`;
+    ctx.font='bold 11px Courier New';
+    ctx.fillText('⚠ 悬崖！跳过！',nearCliff.x-30,BASE_GY-55);
+    ctx.restore();
+  }
+}
+
+// ─── 主循环 ──────────────────────────────────────
+function loop(){
+  update();
+  let sx=0,sy=0;
+  if(shakeT>0){sx=(Math.random()-.5)*shakeT;sy=(Math.random()-.5)*shakeT;}
+  ctx.save();ctx.translate(sx,sy);
+  drawBG();drawBuildings();drawGround();
+  drawObs();drawCoins();
+  if(!P.dead) drawPlayer();
+  drawParticles();drawHints();
+  ctx.restore();
+  requestAnimationFrame(loop);
+}
+
+makeBG();newPlayer();initSegs();renderLives();loop();
+</script>
+</body>
+</html>
