@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CYBER RUN</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; background:#010118; overflow:hidden; font-family:'Courier New',monospace; }
+canvas { display:block; }
+#ui { position:fixed; top:0; left:0; width:100%; z-index:10; pointer-events:none; }
+#score-bar { display:flex; justify-content:space-between; align-items:center; padding:8px 18px; background:rgba(0,0,0,0.55); }
+#score { color:#fff; font-size:17px; font-weight:bold; letter-spacing:2px; }
+#best  { color:#ffd700; font-size:13px; letter-spacing:1px; }
+#lives { display:flex; gap:5px; }
+.heart { color:#ff4466; font-size:15px; }
+#status-bar { display:flex; gap:10px; padding:4px 18px; }
+.badge { padding:2px 9px; border-radius:12px; font-size:11px; font-weight:bold; letter-spacing:1px; }
+#combo-badge { background:rgba(255,200,0,.18); color:#ffd700; border:1px solid #ffd700; display:none; }
+#speed-badge { background:rgba(0,200,255,.12); color:#00cfff; border:1px solid #00cfff; }
+#overlay {
+  position:fixed; top:0; left:0; width:100%; height:100%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(4,4,28,.9); z-index:20;
+}
+#overlay h1 { color:#fff; font-size:40px; letter-spacing:8px; margin-bottom:6px; text-shadow:0 0 28px #00cfff; }
+#overlay .sub { color:#7799bb; font-size:13px; letter-spacing:3px; margin-bottom:22px; }
+#overlay .ctrl {
+  color:#bbb; font-size:13px; line-height:2.3; text-align:center;
+  background:rgba(255,255,255,.05); padding:14px 30px;
+  border-radius:10px; border:1px solid rgba(255,255,255,.1); margin-bottom:22px;
+}
+#start-btn {
+  padding:13px 46px; background:linear-gradient(135deg,#0055dd,#00cfff);
+  color:#fff; border:none; border-radius:8px; font-size:18px; font-weight:bold;
+  cursor:pointer; letter-spacing:3px; pointer-events:all;
+  box-shadow:0 0 22px rgba(0,207,255,.45); transition:transform .1s,box-shadow .1s;
+}
+#start-btn:hover { transform:scale(1.06); box-shadow:0 0 34px rgba(0,207,255,.7); }
+#start-btn:active { transform:scale(.97); }
+#hint { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.3); font-size:11px; pointer-events:none; z-index:10; letter-spacing:1px; display:none; }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div id="score-bar">
+    <div id="score">SCORE: 0</div>
+    <div id="lives"></div>
+    <div id="best">BEST: 0</div>
+  </div>
+  <div id="status-bar">
+    <div class="badge" id="combo-badge"></div>
+    <div class="badge" id="speed-badge">SPD 5.0</div>
+  </div>
+</div>
+
+<div id="overlay">
+  <h1>CYBER RUN</h1>
+  <div class="sub">霓虹都市跑酷</div>
+  <div class="ctrl">
+    ↑ / W / 空格 — 跳跃　|　再按一次 — 二段跳<br>
+    ↓ / S — 蹲下（躲避高空障碍）<br>
+    手机：左半屏跳跃，右半屏蹲下
+  </div>
+  <button id="start-btn">开 始 游 戏</button>
+</div>
+
+<div id="hint">← 跳跃 　 蹲下 →</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+let W, H, GY;
+
+function setSize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  GY = Math.floor(H * 0.73);
+}
+setSize();
+window.addEventListener('resize', setSize);
+
+const S = { IDLE:0, RUN:1, DEAD:2 };
+let state = S.IDLE;
+
+let score, best=0, lives, gspeed, frame;
+let combo, comboT;
+let shakeT;
+let oBuf=[], cBuf=[], pBuf=[], bgLayers=[];
+let oTimer=0, cTimer=0;
+
+const PW=34, PH=54, CH=26;
+let P = {};
+
+function newPlayer() {
+  P = { x:120, y:GY-PH, vy:0, jumps:0, crouch:false, dead:false, inv:0, trail:[] };
+}
+
+function reset() {
+  score=0; lives=3; gspeed=5; frame=0; combo=0; comboT=0; shakeT=0;
+  oBuf=[]; cBuf=[]; pBuf=[]; oTimer=0; cTimer=0;
+  newPlayer();
+  makeBG();
+  renderLives();
+}
+
+function makeBG() {
+  bgLayers = [
+    { spd:.08, items: mkB(9, W/4.5, H*.05, H*.35, 50,90, 200,80) },
+    { spd:.25, items: mkB(7, W/3.2, H*.1,  H*.25, 35,60, 260,60) },
+    { spd:.55, items: mkB(5, W/2.2, H*.12, H*.18, 22,45, 180,40) },
+  ];
+}
+function mkB(n, gap, yMin, yRange, wMin, wAdd, hBase, hRange) {
+  return Array.from({length:n}, (_,i) => ({
+    x: i*gap, w: wMin+Math.random()*wAdd, h: 70+Math.random()*150,
+    hue: hBase+Math.random()*hRange
+  }));
+}
+
+const OTYPES = [
+  { k:'low',    c:'#ff2255', w:26, h:58 },
+  { k:'low',    c:'#ff6600', w:16, h:84 },
+  { k:'low',    c:'#ff2255', w:46, h:36 },
+  { k:'high',   c:'#cc00ff', w:72, h:22, dy:-90 },
+  { k:'high',   c:'#9900ff', w:88, h:18, dy:-80 },
+  { k:'double', c:'#ff2255', w:26, h:50, c2:'#cc00ff', w2:68, h2:20, dy2:-88 },
+];
+
+function spawnObstacle() {
+  const last = oBuf[oBuf.length-1];
+  const gap  = Math.max(150, 300 - score*0.07);
+  if (last && W - last.x < gap) return;
+  const t = OTYPES[Math.floor(Math.random()*OTYPES.length)];
+  const o = { ...t, x: W+20 };
+  o.y = t.dy ? GY + t.dy - t.h : GY - t.h;
+  if (t.k === 'double') { o.x2=W+20; o.y2=GY+(t.dy2||0)-t.h2; }
+  oBuf.push(o);
+}
+
+function spawnCoin() {
+  cBuf.push({ x:W+10, y:GY-58-Math.random()*55, r:9, hue:180+Math.random()*60, got:false });
+}
+
+function burst(x, y, col, n) {
+  n = n||12;
+  for (let i=0; i<n; i++) {
+    const a=Math.random()*Math.PI*2, s=2+Math.random()*5;
+    pBuf.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-1, col, life:40+Math.random()*20, max:60, r:2+Math.random()*3 });
+  }
+}
+
+function doJump() {
+  if (P.dead || state!==S.RUN) return;
+  if (P.jumps < 2) {
+    P.vy = P.jumps===0 ? -16 : -14;
+    P.crouch = false;
+    P.jumps++;
+    burst(P.x+PW/2, GY, P.jumps===1?'#00cfff':'#cc00ff', 8);
+  }
+}
+function setCrouch(v) {
+  if (P.dead || state!==S.RUN) return;
+  P.crouch = v;
+}
+
+const held = {};
+window.addEventListener('keydown', e => {
+  if (held[e.code]) return;
+  held[e.code] = true;
+  if (['ArrowUp','KeyW','Space'].includes(e.code)) {
+    if (state !== S.RUN) { startGame(); return; }
+    doJump(); e.preventDefault();
+  }
+  if (['ArrowDown','KeyS'].includes(e.code)) {
+    if (state !== S.RUN) { startGame(); return; }
+    setCrouch(true); e.preventDefault();
+  }
+});
+window.addEventListener('keyup', e => {
+  held[e.code] = false;
+  if (['ArrowDown','KeyS'].includes(e.code)) setCrouch(false);
+});
+
+canvas.addEventListener('touchstart', e => {
+  if (state !== S.RUN) return;
+  for (const t of e.changedTouches) {
+    if (t.clientX < W/2) doJump(); else setCrouch(true);
+  }
+  e.preventDefault();
+}, {passive:false});
+canvas.addEventListener('touchend', e => {
+  if (state !== S.RUN) return;
+  for (const t of e.changedTouches) {
+    if (t.clientX >= W/2) setCrouch(false);
+  }
+  e.preventDefault();
+}, {passive:false});
+
+document.getElementById('start-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  startGame();
+});
+
+function startGame() {
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('hint').style.display = 'block';
+  reset();
+  state = S.RUN;
+}
+
+function prect() {
+  const h = P.crouch ? CH : PH;
+  return { x:P.x+5, y:P.y+4, w:PW-10, h:h-6 };
+}
+function overlap(a, b) {
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+function checkHit() {
+  if (P.inv > 0) return;
+  const r = prect();
+  for (const o of oBuf) {
+    const boxes = o.k==='double'
+      ? [{x:o.x,y:o.y,w:o.w,h:o.h},{x:o.x2,y:o.y2,w:o.w2,h:o.h2}]
+      : [{x:o.x,y:o.y,w:o.w,h:o.h}];
+    for (const b of boxes) {
+      if (overlap(r, b)) { takeDamage(); return; }
+    }
+  }
+  for (const c of cBuf) {
+    if (!c.got && Math.hypot(P.x+PW/2-c.x, P.y+PH/2-c.y) < c.r+18) {
+      c.got=true; score+=10; combo++; comboT=130;
+      burst(c.x, c.y, `hsl(${c.hue},100%,70%)`, 14);
+    }
+  }
+}
+function takeDamage() {
+  lives--; renderLives(); shakeT=16;
+  burst(P.x+PW/2, P.y+PH/2, '#ff3366', 24);
+  P.inv = 90;
+  if (lives <= 0) {
+    P.dead=true; state=S.DEAD;
+    if (score>best) best=score;
+    document.getElementById('best').textContent = `BEST: ${best}`;
+    setTimeout(showOver, 900);
+  }
+}
+function showOver() {
+  const ov = document.getElementById('overlay');
+  ov.querySelector('h1').textContent = 'GAME OVER';
+  ov.querySelector('.sub').textContent = `得分 ${score}　|　最高 ${best}`;
+  document.getElementById('start-btn').textContent = '再 来 一 局';
+  document.getElementById('hint').style.display = 'none';
+  ov.style.display = 'flex';
+}
+function renderLives() {
+  document.getElementById('lives').innerHTML =
+    [0,1,2].map(i=>`<span class="heart">${i<lives?'♥':'♡'}</span>`).join('');
+}
+
+function update() {
+  if (state !== S.RUN) return;
+  frame++;
+  score++;
+  gspeed = Math.min(15, 5 + Math.floor(score/700)*0.7);
+
+  P.vy += 0.7;
+  P.y  += P.vy;
+  const groundY = GY - (P.crouch ? CH : PH);
+  if (P.y >= groundY) { P.y=groundY; P.vy=0; P.jumps=0; }
+  if (P.inv > 0) P.inv--;
+
+  P.trail.unshift({ x:P.x, y:P.y, h:P.crouch?CH:PH });
+  if (P.trail.length > 8) P.trail.pop();
+
+  oTimer++;
+  const si = Math.max(48, 138 - Math.floor(score/500)*9);
+  if (oTimer >= si) { spawnObstacle(); oTimer=0; }
+
+  cTimer++;
+  if (cTimer >= 100) { spawnCoin(); cTimer=0; }
+
+  for (const o of oBuf) {
+    o.x -= gspeed;
+    if (o.k==='double') o.x2 -= gspeed;
+  }
+  oBuf = oBuf.filter(o => o.x + Math.max(o.w, o.w2||0) > -30);
+  cBuf.forEach(c => c.x -= gspeed);
+  cBuf = cBuf.filter(c => c.x > -30);
+
+  for (const p of pBuf) { p.x+=p.vx; p.y+=p.vy; p.vy+=0.15; p.life--; }
+  pBuf = pBuf.filter(p => p.life>0);
+
+  if (comboT>0) comboT--; else combo=0;
+  if (shakeT>0) shakeT--;
+  if (!P.dead) checkHit();
+
+  document.getElementById('score').textContent = `SCORE: ${score}`;
+  document.getElementById('speed-badge').textContent = `SPD ${gspeed.toFixed(1)}`;
+  const cb = document.getElementById('combo-badge');
+  if (combo>2) { cb.style.display=''; cb.textContent=`COMBO x${combo}`; }
+  else cb.style.display='none';
+}
+
+function drawBG() {
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#010110');
+  g.addColorStop(.65,'#050428');
+  g.addColorStop(1,'#010110');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,.5)';
+  for (let i=0; i<90; i++) {
+    ctx.fillRect((i*173.7+frame*.12)%W, (i*91.3)%(GY*.88), i%9===0?2:1, i%9===0?2:1);
+  }
+}
+
+function drawBuildings() {
+  for (const layer of bgLayers) {
+    for (const b of layer.items) {
+      b.x -= gspeed * layer.spd;
+      if (b.x+b.w < 0) { b.x=W+20; b.hue=180+Math.random()*130; b.w=40+Math.random()*90; b.h=70+Math.random()*150; }
+      const alpha = .1 + layer.spd*.22;
+      ctx.fillStyle = `hsla(${b.hue},58%,28%,${alpha})`;
+      ctx.fillRect(b.x, GY-b.h, b.w, b.h);
+      ctx.fillStyle = `hsla(${b.hue},80%,65%,${alpha*1.9})`;
+      for (let wy=GY-b.h+8; wy<GY-6; wy+=14)
+        for (let wx=b.x+6; wx<b.x+b.w-8; wx+=11)
+          if ((wx+wy+frame)%5>1) ctx.fillRect(wx,wy,5,7);
+    }
+  }
+}
+
+function drawFloor() {
+  const g = ctx.createLinearGradient(0,GY,0,H);
+  g.addColorStop(0,'rgba(0,207,255,.13)'); g.addColorStop(1,'rgba(0,0,20,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,GY,W,H-GY);
+  ctx.save();
+  ctx.shadowBlur=12; ctx.shadowColor='#00cfff';
+  ctx.strokeStyle='#00cfff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,GY); ctx.lineTo(W,GY); ctx.stroke();
+  ctx.restore();
+  const gs=90, off=(frame*gspeed)%gs;
+  ctx.strokeStyle='rgba(0,207,255,.09)'; ctx.lineWidth=1;
+  for (let x=-off; x<W+gs; x+=gs) {
+    ctx.beginPath(); ctx.moveTo(x,GY); ctx.lineTo(x-55,H); ctx.stroke();
+  }
+}
+
+function drawPlayer() {
+  const h  = P.crouch ? CH : PH;
+  const py = P.y;
+  if (P.inv>0 && Math.floor(P.inv/5)%2===0) return;
+  const col = P.inv>0 ? '#ff4488' : '#00cfff';
+  for (let i=0; i<P.trail.length; i++) {
+    const t=P.trail[i], a=(i/P.trail.length)*.22;
+    ctx.fillStyle=`rgba(0,207,255,${a})`;
+    ctx.fillRect(t.x, t.y, PW, t.h);
+  }
+  ctx.save();
+  ctx.shadowBlur=14; ctx.shadowColor=col;
+  if (!P.crouch) {
+    const la=Math.sin(frame*.28)*7;
+    ctx.fillStyle='#006699';
+    ctx.fillRect(P.x+5,  py+h*.58, 11, h*.42+la);
+    ctx.fillRect(P.x+PW-16, py+h*.58, 11, h*.42-la);
+  }
+  ctx.fillStyle=col;
+  ctx.fillRect(P.x+2, py, PW-4, h*(P.crouch?1:.62));
+  if (!P.crouch) {
+    const aa=Math.sin(frame*.28+Math.PI)*9;
+    ctx.fillStyle='#006699';
+    ctx.fillRect(P.x-8,  py+h*.18+aa, 8, 14);
+    ctx.fillRect(P.x+PW, py+h*.18-aa, 8, 14);
+    ctx.fillStyle='#dff8ff';
+    ctx.fillRect(P.x+5, py-16, 22, 16);
+    ctx.fillStyle=col;
+    ctx.fillRect(P.x+7, py-13, 18, 8);
+  } else {
+    ctx.fillStyle='#dff8ff';
+    ctx.fillRect(P.x+5, py-11, 22, 11);
+    ctx.fillStyle=col;
+    ctx.fillRect(P.x+7, py-9, 18, 6);
+  }
+  ctx.restore();
+}
+
+function drawObstacles() {
+  for (const o of oBuf) {
+    ctx.save();
+    ctx.shadowBlur=13; ctx.shadowColor=o.c;
+    ctx.fillStyle=o.c; ctx.fillRect(o.x,o.y,o.w,o.h);
+    ctx.fillStyle='rgba(255,255,255,.22)';
+    ctx.fillRect(o.x+2,o.y+5,o.w-4,3); ctx.fillRect(o.x+2,o.y+o.h-9,o.w-4,3);
+    if (o.k==='double') {
+      ctx.shadowColor=o.c2; ctx.fillStyle=o.c2;
+      ctx.fillRect(o.x2,o.y2,o.w2,o.h2);
+      ctx.fillStyle='rgba(255,255,255,.22)';
+      ctx.fillRect(o.x2+2,o.y2+4,o.w2-4,3);
+    }
+    ctx.restore();
+  }
+}
+
+function drawCoins() {
+  for (const c of cBuf) {
+    if (c.got) continue;
+    const bob=Math.sin(frame*.08)*5;
+    ctx.save();
+    ctx.shadowBlur=16; ctx.shadowColor=`hsl(${c.hue},100%,65%)`;
+    ctx.fillStyle=`hsl(${c.hue},100%,65%)`;
+    ctx.beginPath(); ctx.arc(c.x, c.y+bob, c.r+Math.sin(frame*.12)*2, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawParticles() {
+  for (const p of pBuf) {
+    ctx.globalAlpha = p.life/p.max;
+    ctx.fillStyle = p.col;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*(p.life/p.max),0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawHints() {
+  if (state!==S.RUN) return;
+  if (P.jumps===1) {
+    ctx.fillStyle='rgba(200,0,255,.85)';
+    ctx.font='bold 11px Courier New';
+    ctx.fillText('▲ 二段跳', P.x, P.y-20);
+  }
+  const near = oBuf.find(o=>(o.k==='high'||o.k==='double')&&o.x>P.x&&o.x-P.x<200);
+  if (near && !P.crouch && P.jumps===0) {
+    ctx.fillStyle='rgba(255,200,0,.9)';
+    ctx.font='bold 11px Courier New';
+    ctx.fillText('↓ 蹲下!', near.x, near.y-10);
+  }
+}
+
+function loop() {
+  update();
+  let sx=0, sy=0;
+  if (shakeT>0) { sx=(Math.random()-.5)*shakeT; sy=(Math.random()-.5)*shakeT; }
+  ctx.save();
+  ctx.translate(sx, sy);
+  drawBG();
+  drawBuildings();
+  drawFloor();
+  drawObstacles();
+  drawCoins();
+  if (!P.dead) drawPlayer();
+  drawParticles();
+  drawHints();
+  ctx.restore();
+  requestAnimationFrame(loop);
+}
+
+makeBG();
+newPlayer();
+renderLives();
+loop();
+</script>
+</body>
+</html>
