@@ -1,0 +1,316 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>500 游戏创意</title>
+<style>
+:root {
+  --color-border-primary: #d0d7de;
+  --color-border-secondary: #d8dee4;
+  --color-border-tertiary: #e6e8eb;
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f6f8fa;
+  --color-text-primary: #24292f;
+  --color-text-secondary: #57606a;
+  --border-radius-md: 6px;
+  --border-radius-lg: 12px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);background:var(--color-background-primary);color:var(--color-text-primary)}
+.top{padding:1rem 0 0.75rem;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cat-btn{font-size:12px;padding:5px 12px;border-radius:20px;cursor:pointer;border:0.5px solid var(--color-border-secondary);background:var(--color-background-secondary);color:var(--color-text-secondary);transition:all 0.15s}
+.cat-btn.on{background:var(--color-text-primary);color:var(--color-background-primary);border-color:var(--color-text-primary)}
+.info{font-size:12px;color:var(--color-text-secondary);padding:0 0 0.75rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
+.card{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:10px 12px;background:var(--color-background-primary);cursor:pointer}
+.card:hover{border-color:var(--color-border-primary)}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;margin-bottom:4px}
+.card-name{font-size:13px;font-weight:500;color:var(--color-text-primary);line-height:1.3}
+.badge{font-size:10px;padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.card-desc{font-size:12px;color:var(--color-text-secondary);line-height:1.5}
+.pager{display:flex;justify-content:center;align-items:center;gap:6px;padding:1rem 0;flex-wrap:wrap}
+.pb{font-size:13px;padding:5px 12px;cursor:pointer;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary)}
+.pb:disabled{opacity:0.35;cursor:default}
+.pb.cur{font-weight:500;border-color:var(--color-border-primary)}
+.pi{font-size:13px;color:var(--color-text-secondary)}
+.overlay{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:10;align-items:flex-start;justify-content:center;padding:2rem 1rem}
+.overlay.open{display:flex}
+.modal{background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);padding:1.25rem;max-width:480px;width:100%;position:relative;margin-top:2rem}
+.mc{position:absolute;top:10px;right:12px;background:none;border:none;cursor:pointer;font-size:18px;color:var(--color-text-secondary)}
+.mh{font-size:16px;font-weight:500;margin-bottom:8px}
+.mm{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+.md{font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:10px}
+.ml{font-size:13px;font-weight:500;margin-bottom:5px}
+.mtags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px}
+.mtag{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+.send-btn{width:100%}
+</style>
+
+<body>
+<div style="position:relative" id="root">
+<div class="top" id="cats"></div>
+<div class="info" id="info"></div>
+<div class="grid" id="grid"></div>
+<div class="pager" id="pager"></div>
+<div class="overlay" id="overlay" onclick="if(event.target===this)close()">
+  <div class="modal">
+    <button class="mc" onclick="close()">✕</button>
+    <div class="mh" id="mh"></div>
+    <div class="mm"><span class="badge" id="mb"></span><span style="font-size:12px;color:var(--color-text-secondary)" id="md2"></span></div>
+    <p class="md" id="md"></p>
+    <p class="ml">核心机制</p>
+    <p class="md" id="mm2"></p>
+    <div class="mtags" id="mt"></div>
+    <button class="send-btn" onclick="send()">↗ 帮我展开设计这个游戏</button>
+  </div>
+</div>
+</div>
+
+<script>
+const CATS={
+  "益智解谜":{bg:"#EEEDFE",tx:"#3C3489"},
+  "动作街机":{bg:"#FAECE7",tx:"#712B13"},
+  "策略经营":{bg:"#E1F5EE",tx:"#085041"},
+  "角色扮演":{bg:"#FBEAF0",tx:"#72243E"},
+  "休闲放置":{bg:"#FAEEDA",tx:"#633806"},
+  "创意沙盒":{bg:"#E6F1FB",tx:"#0C447C"},
+  "多人对战":{bg:"#EAF3DE",tx:"#27500A"},
+  "模拟仿真":{bg:"#F1EFE8",tx:"#444441"},
+  "叙事解谜":{bg:"#EEEDFE",tx:"#26215C"},
+  "音乐节奏":{bg:"#FBEAF0",tx:"#4B1528"},
+};
+const D=[
+{id:1,cat:"益智解谜",name:"镜像逻辑",desc:"控制一个点，其镜像同步运动，引导两者同时到达各自目标。",mech:"同步镜像移动、双路径规划、障碍物错位布局",diff:"中",tags:["几何","空间","同步"]},
+{id:2,cat:"益智解谜",name:"重力翻转",desc:"随时翻转重力方向，让角色在上下两个世界来回穿梭解谜。",mech:"重力切换、双层地图设计、时机判断",diff:"中",tags:["物理","平台","节奏"]},
+{id:3,cat:"益智解谜",name:"颜色混合迷宫",desc:"角色携带颜色，与墙壁混合后改变通路，找到正确路线。",mech:"颜色混合规则（RGB）、状态变换、路径探索",diff:"中",tags:["颜色","逻辑","探索"]},
+{id:4,cat:"益智解谜",name:"时间回溯棋",desc:"每步棋可'撤回'到5秒前的局面，利用时间差制造胜机。",mech:"时间回溯、棋盘博弈、预测对手",diff:"难",tags:["时间","棋类","策略"]},
+{id:5,cat:"益智解谜",name:"影子配对",desc:"拖动不规则形状，使其阴影与目标轮廓完全吻合。",mech:"3D投影、旋转变换、几何匹配",diff:"易",tags:["几何","空间","视觉"]},
+{id:6,cat:"益智解谜",name:"语义接龙",desc:"词语尾字必须是下一个词的首字，限时构建最长链。",mech:"汉字词典、图论最优路径、词频权重",diff:"易",tags:["文字","语言","汉字"]},
+{id:7,cat:"益智解谜",name:"电路连接",desc:"拖放导线连通所有灯泡，不能短路，电流遵循物理规律。",mech:"图的连通性、欧拉路径、电路仿真",diff:"中",tags:["电路","逻辑","物理"]},
+{id:8,cat:"益智解谜",name:"分子拼接",desc:"根据化学键规则，将原子拼成目标分子结构。",mech:"化学键约束、空间构型、目标匹配",diff:"中",tags:["化学","教育","空间"]},
+{id:9,cat:"益智解谜",name:"像素数独",desc:"数独格内填颜色而非数字，同行同列同宫不重色。",mech:"约束传播、回溯搜索、颜色编码",diff:"中",tags:["数独","颜色","经典"]},
+{id:10,cat:"益智解谜",name:"声波导航",desc:"发出声波，通过回声判断迷宫墙壁位置，盲目探索出口。",mech:"声呐模拟、记忆绘图、不完全信息",diff:"难",tags:["声音","感知","探索"]},
+{id:11,cat:"益智解谜",name:"折纸解谜",desc:"在屏幕上折叠纸张，使折叠后的图案与目标完全一致。",mech:"2D折叠变换、层叠顺序、目标匹配",diff:"中",tags:["折纸","几何","视觉"]},
+{id:12,cat:"益智解谜",name:"液体分层",desc:"将不同密度的液体倒入容器，使层次顺序符合目标配方。",mech:"流体密度物理、容器容量、分步规划",diff:"易",tags:["物理","液体","休闲"]},
+{id:13,cat:"益智解谜",name:"量子叠加态",desc:"粒子同时存在两种状态，观测时坍缩，利用叠加态穿越障碍。",mech:"量子叠加、坍缩时机、路径博弈",diff:"难",tags:["量子","物理","创新"]},
+{id:14,cat:"益智解谜",name:"密码轮盘",desc:"破译古典密码（凯撒、维吉尼亚等），提取隐藏信息解锁下关。",mech:"密码学教学、频率分析、历史密码",diff:"中",tags:["密码","教育","历史"]},
+{id:15,cat:"益智解谜",name:"齿轮传动",desc:"在有限空间内排列齿轮，使输入端运动传递到输出端。",mech:"齿轮比计算、空间约束、角速度传递",diff:"中",tags:["机械","物理","空间"]},
+{id:16,cat:"益智解谜",name:"像素还原",desc:"给出模糊像素图，逐步猜测并还原原始高清图像。",mech:"逐步揭示、概率猜测、图像识别",diff:"易",tags:["视觉","猜测","休闲"]},
+{id:17,cat:"益智解谜",name:"逻辑真值表",desc:"根据条件语句和已知事实，推导所有命题的真假值。",mech:"布尔逻辑、命题演算、约束推理",diff:"中",tags:["逻辑","数学","教育"]},
+{id:18,cat:"益智解谜",name:"水管工3D",desc:"在三维空间中连接水管，使水流从源点到达所有出口。",mech:"3D路径规划、流量分配、旋转操作",diff:"中",tags:["3D","连接","空间"]},
+{id:19,cat:"益智解谜",name:"棱镜折射",desc:"旋转棱镜将光束折射到所有目标水晶上，颜色须匹配。",mech:"几何光学、颜色叠加、旋转角度",diff:"中",tags:["光学","颜色","几何"]},
+{id:20,cat:"益智解谜",name:"古汉字猜谜",desc:"给出甲骨文字形，猜测现代汉字含义，学习汉字演变。",mech:"汉字数据库、形义联想、渐进提示",diff:"易",tags:["汉字","文化","教育"]},
+{id:21,cat:"益智解谜",name:"弹性物理",desc:"放置弹性板改变小球轨迹，使小球击中所有目标。",mech:"弹性碰撞物理、角度计算、能量损耗",diff:"中",tags:["物理","弹道","角度"]},
+{id:22,cat:"益智解谜",name:"词根词缀",desc:"拆解英语单词为词根词缀，理解含义后组合新单词。",mech:"词汇学、前后缀规则、组合验证",diff:"易",tags:["英语","教育","文字"]},
+{id:23,cat:"益智解谜",name:"迷宫生成器",desc:"自己绘制迷宫后挑战朋友，系统验证迷宫的合法性。",mech:"程序生成算法、连通性验证、UGC关卡",diff:"易",tags:["创意","社交","UGC"]},
+{id:24,cat:"益智解谜",name:"平衡天平",desc:"在天平两侧放置砝码，使两侧达到精确平衡。",mech:"力矩计算、整数分拆、最优策略",diff:"中",tags:["数学","物理","逻辑"]},
+{id:25,cat:"益智解谜",name:"星座连线",desc:"根据神话描述，在星图上连出正确的星座图形。",mech:"星座数据库、手绘识别、天文教育",diff:"易",tags:["天文","文化","教育"]},
+{id:26,cat:"益智解谜",name:"非线性叙事谜",desc:"阅读碎片化故事片段，按时间顺序重新排列，还原事件真相。",mech:"叙事结构、逻辑推理、时序重建",diff:"中",tags:["叙事","推理","文学"]},
+{id:27,cat:"益智解谜",name:"地图染色",desc:"用最少颜色为地图染色，使相邻区域颜色不同（四色定理应用）。",mech:"图论着色、贪心算法、最优化",diff:"中",tags:["图论","数学","地理"]},
+{id:28,cat:"益智解谜",name:"音符解谜",desc:"根据听到的旋律片段，在键盘上还原音符序列。",mech:"音高识别、节拍匹配、音乐记忆",diff:"中",tags:["音乐","听觉","记忆"]},
+{id:29,cat:"益智解谜",name:"分形拼图",desc:"将分形图案切割成碎片，重新拼合为完整图案。",mech:"分形几何、旋转匹配、边缘对齐",diff:"易",tags:["分形","视觉","数学"]},
+{id:30,cat:"益智解谜",name:"河内塔变形",desc:"汉诺塔的变形版，新增颜色规则和禁止移动约束。",mech:"递归策略、约束规划、最少步数",diff:"难",tags:["递归","数学","经典"]},
+{id:31,cat:"益智解谜",name:"隐藏图形",desc:"在复杂视觉噪声中找出隐藏的几何图形，测试专注力。",mech:"视觉搜索、图形识别、注意力测试",diff:"易",tags:["视觉","专注","休闲"]},
+{id:32,cat:"益智解谜",name:"逻辑推断岛",desc:"孤岛上的居民有不同职业和特征，通过线索推断每人信息。",mech:"爱因斯坦谜题、约束满足、逻辑表格",diff:"难",tags:["逻辑","推断","经典"]},
+{id:33,cat:"益智解谜",name:"向量叠加",desc:"拖动向量箭头，使所有向量之和指向目标方向和大小。",mech:"向量运算、物理直觉、数学可视化",diff:"中",tags:["数学","物理","教育"]},
+{id:34,cat:"益智解谜",name:"错觉探索",desc:"探索各种视觉错觉（Escher楼梯等），找出'不可能'的转折点。",mech:"视觉错觉生成、空间矛盾、艺术教育",diff:"易",tags:["艺术","视觉","创意"]},
+{id:35,cat:"益智解谜",name:"密室信息流",desc:"接收碎片化的聊天记录和文件，推断密室中的真相。",mech:"信息整合、证据链推理、叙事设计",diff:"中",tags:["密室","推理","叙事"]},
+{id:36,cat:"益智解谜",name:"数列找规律",desc:"给出数列前几项，发现规律填写后续值，规律越来越复杂。",mech:"数论、多项式递推、机器生成题库",diff:"中",tags:["数学","逻辑","教育"]},
+{id:37,cat:"益智解谜",name:"盲人钢琴家",desc:"只听声音判断音符，在看不见的键盘上弹出正确曲子。",mech:"听觉记忆、音乐理论、无视觉界面",diff:"难",tags:["音乐","听觉","创新"]},
+{id:38,cat:"益智解谜",name:"概率俄罗斯轮盘",desc:"通过贝叶斯推理预测轮盘结果，最优化赌注策略。",mech:"贝叶斯概率、期望计算、风险决策",diff:"难",tags:["数学","概率","策略"]},
+{id:39,cat:"益智解谜",name:"汉字拆字",desc:"将汉字拆分为偏旁部首，用拆开的部件重新组合成新字。",mech:"汉字结构、部件数据库、创意组合",diff:"易",tags:["汉字","文化","创意"]},
+{id:40,cat:"益智解谜",name:"反转棋局",desc:"每次落子后所有棋子颜色反转，重新规划策略。",mech:"状态翻转、博弈树、对抗搜索",diff:"难",tags:["棋类","对抗","策略"]},
+{id:41,cat:"益智解谜",name:"拓扑变形",desc:"将橡皮泥形状拉伸变形，使其拓扑等价于目标形状。",mech:"拓扑学基础、连续变形、洞数分类",diff:"中",tags:["数学","拓扑","教育"]},
+{id:42,cat:"益智解谜",name:"钟表时差",desc:"根据各时区提示，推算事件发生的绝对时间点。",mech:"时区计算、时间线重建、逻辑推断",diff:"中",tags:["时间","逻辑","地理"]},
+{id:43,cat:"益智解谜",name:"二进制装置",desc:"操作0/1开关阵列，使电路输出匹配目标二进制数。",mech:"数字逻辑门、位运算、计算机教育",diff:"中",tags:["计算机","逻辑","教育"]},
+{id:44,cat:"益智解谜",name:"影子木偶",desc:"旋转光源方向，使木偶的阴影形状变化为目标轮廓。",mech:"投影几何、光源方向、3D到2D变换",diff:"中",tags:["几何","视觉","创意"]},
+{id:45,cat:"益智解谜",name:"记忆宫殿",desc:"在虚拟宫殿中放置记忆锚，通过空间联想回忆信息序列。",mech:"记忆术训练、空间导航、序列记忆",diff:"易",tags:["记忆","教育","认知"]},
+{id:46,cat:"益智解谜",name:"蛋白质折叠",desc:"根据氨基酸序列，将蛋白质链折叠成能量最低的3D构型。",mech:"能量最小化、生物物理、科学游戏",diff:"难",tags:["科学","生物","3D"]},
+{id:47,cat:"益智解谜",name:"地铁路线规划",desc:"在有限预算内规划地铁网络，覆盖所有需求点且路线最优。",mech:"图的生成树、最小费用流、城市规划",diff:"中",tags:["图论","城市","策略"]},
+{id:48,cat:"益智解谜",name:"代码调试",desc:"给出有bug的简单程序，通过视觉调试器找出并修复问题。",mech:"程序执行可视化、逻辑错误定位、编程教育",diff:"中",tags:["编程","教育","逻辑"]},
+{id:49,cat:"益智解谜",name:"涌现生命",desc:"设计元胞自动机规则，使细胞群演化出目标图案。",mech:"康威生命游戏变体、规则进化、涌现现象",diff:"难",tags:["生命游戏","数学","创意"]},
+{id:50,cat:"益智解谜",name:"语法树构建",desc:"将句子分析为语法树结构，正确标注词性和句法关系。",mech:"自然语言处理基础、依存句法、语言教育",diff:"中",tags:["语言","教育","树形结构"]},
+{id:61,cat:"动作街机",name:"引力射手",desc:"子弹受重力影响弯曲，需预判弹道曲线才能命中目标。",mech:"抛体运动、弹道预测、精度挑战",diff:"中",tags:["射击","物理","技巧"]},
+{id:62,cat:"动作街机",name:"时间子弹",desc:"子弹飞行时时间变慢，玩家可以在子弹飞行途中移动躲避。",mech:"子弹时间机制、时间膨胀、闪避节奏",diff:"中",tags:["时间","射击","节奏"]},
+{id:63,cat:"动作街机",name:"像素飞贼",desc:"在像素风格城市中飞檐走壁，偷取目标物品后全身而退。",mech:"钩爪移动、视野盲区、路线规划",diff:"中",tags:["潜行","平台","像素"]},
+{id:64,cat:"动作街机",name:"连击大师",desc:"街机格斗游戏，连击数越高伤害倍数越大，追求无限连击。",mech:"连击计数器、取消机制、帧数判定",diff:"难",tags:["格斗","连击","技巧"]},
+{id:65,cat:"动作街机",name:"超导弹弓",desc:"拉伸弹弓射出角色，在空中接触弹板反弹，最终落入目标区域。",mech:"弹性势能、反弹角度、抛物线",diff:"易",tags:["物理","弹道","休闲"]},
+{id:66,cat:"动作街机",name:"熔岩地板",desc:"地板逐渐被熔岩淹没，必须持续跳跃到更高平台生存。",mech:"竖向Endless Runner、高度记录、平台随机生成",diff:"中",tags:["生存","平台","Endless"]},
+{id:67,cat:"动作街机",name:"脉冲波",desc:"以音乐节拍为准，在节拍点发出脉冲波消灭周围敌人。",mech:"节奏判定、范围攻击、音乐同步",diff:"中",tags:["音乐","节奏","射击"]},
+{id:68,cat:"动作街机",name:"量子闪现",desc:"可以瞬间传送到光标位置，但传送冷却期间极度脆弱。",mech:"闪烁技能、冷却管理、空间快速移动",diff:"中",tags:["技能","移动","动作"]},
+{id:69,cat:"动作街机",name:"镜像决斗",desc:"控制两个镜像角色同时战斗不同方向的敌人。",mech:"双角色同步操控、分屏挑战、注意力分配",diff:"难",tags:["挑战","双角色","技巧"]},
+{id:70,cat:"动作街机",name:"粒子漩涡",desc:"操控漩涡吸引粒子，让粒子相互碰撞湮灭得分。",mech:"粒子系统、吸引力场、碰撞物理",diff:"易",tags:["粒子","物理","休闲"]},
+{id:71,cat:"动作街机",name:"霓虹骑士",desc:"骑摩托在霓虹赛道高速飞驰，漂移充能释放氮气加速。",mech:"摩托物理、漂移系统、速度感设计",diff:"中",tags:["赛车","速度","霓虹"]},
+{id:72,cat:"动作街机",name:"音波剑客",desc:"剑的挥击产生音波，音波在关卡中弹射，消灭被击中的敌人。",mech:"音波物理、弹射角度、组合攻击",diff:"中",tags:["声音","动作","技巧"]},
+{id:73,cat:"动作街机",name:"章鱼争霸",desc:"控制章鱼，灵活运用八条触手抓取、投掷、攀爬。",mech:"多点触控、绳索物理、触手动力学",diff:"中",tags:["物理","创意","触控"]},
+{id:74,cat:"动作街机",name:"像素大爆炸",desc:"引爆连锁反应，使一颗炸弹最终炸毁整个关卡的所有目标。",mech:"连锁爆炸物理、延迟计算、轨迹预测",diff:"中",tags:["爆炸","物理","策略"]},
+{id:75,cat:"动作街机",name:"弹幕诗人",desc:"弹幕射击，但子弹排列成汉字或诗句图案，带来视觉美感。",mech:"弹幕图案生成、STG核心、艺术设计",diff:"中",tags:["弹幕","艺术","射击"]},
+{id:76,cat:"动作街机",name:"冰刃溜冰",desc:"在冰面高速滑行，借助惯性漂移完成精准绕桩挑战。",mech:"冰面摩擦物理、惯性漂移、精准控制",diff:"中",tags:["物理","速度","精准"]},
+{id:77,cat:"动作街机",name:"机械爪臂",desc:"控制起重机械爪，在有限时间内精确抓取指定物品。",mech:"钟摆物理、精准落点、限时挑战",diff:"易",tags:["物理","抓取","休闲"]},
+{id:78,cat:"动作街机",name:"像素忍者",desc:"忍者在像素城市穿梭，用手里剑远程攻击，消除平台障碍。",mech:"投掷物理、平台跑酷、忍者主题",diff:"中",tags:["忍者","平台","投掷"]},
+{id:79,cat:"动作街机",name:"超新星护盾",desc:"控制旋转护盾反射敌方子弹，让子弹击中射出它的敌人。",mech:"子弹反射、角度控制、时机判断",diff:"中",tags:["防御","反射","技巧"]},
+{id:80,cat:"动作街机",name:"电磁轨道枪",desc:"充能后发射高速弹丸，穿透所有障碍一击即中，但充能需暴露。",mech:"充能机制、穿透射击、风险与收益",diff:"中",tags:["射击","充能","技巧"]},
+{id:81,cat:"动作街机",name:"跑酷程序员",desc:"程序自动跑，玩家通过编程插入指令控制角色躲避障碍。",mech:"简单编程逻辑、自动运行、指令序列",diff:"中",tags:["编程","跑酷","教育"]},
+{id:82,cat:"动作街机",name:"超重力跳",desc:"重力比正常强十倍，小心翼翼跳跃，一个失误就会摔死。",mech:"高重力物理、精准跳跃、高难度平台",diff:"难",tags:["物理","平台","高难度"]},
+{id:83,cat:"动作街机",name:"影分身战场",desc:"释放影分身，所有分身模仿主体动作，消灭范围内敌人。",mech:"分身系统、范围攻击、时机控制",diff:"中",tags:["技能","分身","动作"]},
+{id:84,cat:"动作街机",name:"弦动音波",desc:"拨动弦线产生音波，音波沿路线传播伤害敌人。",mech:"音波物理、弦乐机制、动作音乐",diff:"中",tags:["音乐","动作","创意"]},
+{id:85,cat:"动作街机",name:"反向重力井",desc:"在失重空间中，向任意方向射出锚点改变局部重力方向。",mech:"局部重力场、多方向移动、空间控制",diff:"难",tags:["物理","空间","创新"]},
+{id:86,cat:"动作街机",name:"弹力蛙",desc:"青蛙跳跃时腿部蓄力，根据蓄力时间和方向控制跳跃距离。",mech:"蓄力跳跃、弹性物理、精准落点",diff:"易",tags:["物理","跳跃","休闲"]},
+{id:87,cat:"动作街机",name:"熵减机器人",desc:"机器人在混乱中维持秩序，修复不断崩坏的环境，对抗熵增。",mech:"修复机制、随机崩坏、时间压力",diff:"中",tags:["策略","时间压力","创新"]},
+{id:88,cat:"动作街机",name:"血战霓虹城",desc:"90年代风格清版动作，连续击倒敌人触发疯狂模式。",mech:"清版动作、疯狂模式、连击系统",diff:"中",tags:["清版","格斗","复古"]},
+{id:89,cat:"动作街机",name:"粒子加速器",desc:"控制粒子在加速器轨道中运动，使其达到目标速度和能量。",mech:"粒子加速物理、磁场控制、能量管理",diff:"难",tags:["物理","科学","精准"]},
+{id:90,cat:"动作街机",name:"超音速跑者",desc:"横版跑酷，速度越来越快，声音产生多普勒效应，画面扭曲。",mech:"速度感视效、自动加速、障碍躲避",diff:"中",tags:["跑酷","速度","视效"]},
+{id:121,cat:"策略经营",name:"蚁群帝国",desc:"模拟蚂蚁群落，信息素引导工蚁路线，建立最高效的觅食路线。",mech:"群体智能、信息素算法、资源优化",diff:"中",tags:["模拟","蚂蚁","优化"]},
+{id:122,cat:"策略经营",name:"星际贸易商",desc:"在多个星球间买卖资源，利用价格差套利，应对突发市场波动。",mech:"动态市场、套利策略、供需模型",diff:"中",tags:["贸易","经济","太空"]},
+{id:123,cat:"策略经营",name:"城市血管",desc:"设计城市的水电管网，优化能量流动效率，应对突发故障。",mech:"网络流、故障模拟、优化设计",diff:"中",tags:["城市","基础设施","优化"]},
+{id:124,cat:"策略经营",name:"基因工厂",desc:"编辑生物基因创造新品种，销售给市场同时应对生态副作用。",mech:"基因组合、市场需求、生态平衡",diff:"难",tags:["科幻","生物","经营"]},
+{id:125,cat:"策略经营",name:"海盗航线",desc:"大航海时代海盗，规划最优劫掠路线，管理船员忠诚度。",mech:"路线规划、资源管理、随机事件",diff:"中",tags:["海盗","历史","航海"]},
+{id:126,cat:"策略经营",name:"茶庄掌柜",desc:"经营中国传统茶庄，品茶配方、拓展商路、培养学徒。",mech:"茶文化系统、商路管理、技艺传承",diff:"易",tags:["茶文化","经营","文化"]},
+{id:127,cat:"策略经营",name:"云计算帝国",desc:"经营云服务公司，分配服务器资源，应对流量洪峰和安全威胁。",mech:"资源调度、负载均衡、现代IT",diff:"中",tags:["科技","经营","IT"]},
+{id:128,cat:"策略经营",name:"气候工程师",desc:"通过各种手段干预全球气候，在经济利益和生态保护间寻找平衡。",mech:"气候模型、博弈决策、全球系统",diff:"难",tags:["环保","模拟","决策"]},
+{id:129,cat:"策略经营",name:"丝路商队",desc:"丝绸之路贸易模拟，管理骆驼商队，处理沙漠风暴和强盗袭击。",mech:"历史贸易、资源管理、随机事件",diff:"中",tags:["历史","贸易","文化"]},
+{id:130,cat:"策略经营",name:"音乐厂牌",desc:"经营独立音乐厂牌，发掘新人、制作专辑、应对流行趋势。",mech:"音乐市场、艺人培养、趋势系统",diff:"中",tags:["音乐","经营","文化"]},
+{id:131,cat:"策略经营",name:"基因粮仓",desc:"培育抗旱耐盐高产作物品种，在全球粮食危机中保障食物供应。",mech:"基因选择、环境压力、全球系统",diff:"中",tags:["农业","生物","策略"]},
+{id:132,cat:"策略经营",name:"量子计算创业",desc:"建立量子计算公司，攻克技术难题，争取在行业立足。",mech:"科技树、融资系统、竞争对手",diff:"中",tags:["科技","创业","策略"]},
+{id:181,cat:"角色扮演",name:"赛博武士",desc:"未来都市中的武士，在高科技与传统道义间寻找平衡。",mech:"剑道战斗、荣誉系统、赛博朋克世界",diff:"中",tags:["赛博朋克","武士","叙事"]},
+{id:182,cat:"角色扮演",name:"记忆猎手",desc:"进入他人记忆中追踪线索，记忆会随时间模糊和扭曲。",mech:"记忆空间探索、叙事解谜、心理悬疑",diff:"中",tags:["记忆","悬疑","叙事"]},
+{id:183,cat:"角色扮演",name:"变形师",desc:"可以变成任何见过的动物或人，利用变形能力解决各种困境。",mech:"多形态切换、能力组合、变形限制",diff:"中",tags:["变形","能力","探索"]},
+{id:184,cat:"角色扮演",name:"神经黑客",desc:"入侵他人神经系统，临时获得其技能，但有被反入侵的风险。",mech:"技能借用、反制风险、赛博身份",diff:"中",tags:["赛博朋克","黑客","技能"]},
+{id:185,cat:"角色扮演",name:"梦境建筑师",desc:"在别人的梦里构建场景，引导梦境走向以影响现实中的决策。",mech:"梦境构建、心理影响、层叠现实",diff:"中",tags:["梦境","心理","叙事"]},
+{id:186,cat:"角色扮演",name:"末日先知",desc:"预见未来灾难，但无人相信，通过间接行动改变灾难结局。",mech:"预知系统、间接影响、蝴蝶效应",diff:"难",tags:["末日","预知","叙事"]},
+{id:187,cat:"角色扮演",name:"星际外交官",desc:"在多个外星文明间斡旋，化解文化误解，防止星际战争。",mech:"外交系统、文化理解、谈判技巧",diff:"难",tags:["外交","太空","文化"]},
+{id:188,cat:"角色扮演",name:"古代炼金术士",desc:"在中世纪欧洲寻求点金石，炼制药剂和材料，追求永生之谜。",mech:"炼金配方、历史背景、神秘学",diff:"中",tags:["炼金","历史","魔法"]},
+{id:189,cat:"角色扮演",name:"量子侦探",desc:"利用量子力学原理解案，在多个平行宇宙中追踪犯罪真相。",mech:"平行宇宙、物理侦探、多线叙事",diff:"难",tags:["量子","侦探","科幻"]},
+{id:190,cat:"角色扮演",name:"文字灵魂",desc:"角色是一篇古老文字的精灵，在文字意象世界中旅行和战斗。",mech:"文字意象、诗意世界、创意战斗",diff:"中",tags:["文学","创意","艺术"]},
+{id:211,cat:"休闲放置",name:"宇宙泡泡",desc:"宇宙不断膨胀，点击加速星系形成，放置后自动收取宇宙能量。",mech:"放置增量、宇宙模型、进度解锁",diff:"易",tags:["放置","宇宙","放松"]},
+{id:212,cat:"休闲放置",name:"茶园禅意",desc:"种植打理茶园，等待茶叶生长，制作各种名茶，放置收益。",mech:"茶文化、时间增量、品种解锁",diff:"易",tags:["茶","放置","禅意"]},
+{id:213,cat:"休闲放置",name:"像素农场",desc:"像素风格农场，手动耕种或放置自动农具，打造个性农庄。",mech:"农场经营、放置自动化、像素美学",diff:"易",tags:["农场","像素","放置"]},
+{id:214,cat:"休闲放置",name:"细菌进化",desc:"点击培养细菌，细菌自动复制和进化，解锁各种惊人特性。",mech:"进化增量、特性组合、生物学",diff:"易",tags:["进化","生物","放置"]},
+{id:215,cat:"休闲放置",name:"黑洞吞噬",desc:"控制小黑洞吸收物质不断成长，放置时自动吸收小天体。",mech:"质量增长、天文学、放置增量",diff:"易",tags:["黑洞","太空","放置"]},
+{id:216,cat:"休闲放置",name:"算法增量",desc:"编写越来越高效的算法，运算次数指数增长，解锁计算机历史里程碑。",mech:"计算机教育、指数增长、历史解锁",diff:"易",tags:["编程","教育","放置"]},
+{id:217,cat:"休闲放置",name:"茶馆众生相",desc:"经营老茶馆，顾客带来各种故事碎片，收集拼凑成城市史诗。",mech:"叙事收集、放置经营、文化积累",diff:"易",tags:["叙事","茶文化","放置"]},
+{id:218,cat:"休闲放置",name:"知识图书馆",desc:"收集知识卡片自动组合形成新洞见，建设最博大的虚拟图书馆。",mech:"知识组合、发现系统、放置收集",diff:"易",tags:["知识","收集","放置"]},
+{id:219,cat:"休闲放置",name:"文明增量",desc:"从石器时代开始，每次点击推进文明进步，最终殖民宇宙。",mech:"文明演进、指数增长、历史解锁",diff:"易",tags:["文明","历史","放置"]},
+{id:220,cat:"休闲放置",name:"禅意花园",desc:"打理日式枯山水花园，缓慢而专注地摆放石头和耙沙。",mech:"放松设计、禅宗美学、无压力创作",diff:"易",tags:["禅意","花园","放松"]},
+{id:241,cat:"创意沙盒",name:"物理画板",desc:"在画板上绘制形状，赋予物理属性后观察运动，创造奇特机器。",mech:"2D物理引擎、自由创作、机械模拟",diff:"易",tags:["物理","创作","沙盒"]},
+{id:242,cat:"创意沙盒",name:"声音雕塑",desc:"用声音频率和波形雕刻3D艺术品，不同频率塑造不同形态。",mech:"声波可视化、3D生成、音乐创作",diff:"中",tags:["声音","3D","艺术"]},
+{id:243,cat:"创意沙盒",name:"像素世界创造",desc:"像素级建造世界，生态自动演化，玩家只设置初始规则。",mech:"像素世界、涌现系统、创世模拟",diff:"中",tags:["像素","创世","沙盒"]},
+{id:244,cat:"创意沙盒",name:"语法世界",desc:"用语言语法结构创造游戏世界，主语创建角色，谓语产生动作。",mech:"语法生成系统、语言游戏化、创意叙事",diff:"难",tags:["语言","创意","叙事"]},
+{id:245,cat:"创意沙盒",name:"基因编辑器",desc:"在图形界面上直接修改生物基因，观察基因表达产生的形态。",mech:"基因可视化、表型影响、生物教育",diff:"中",tags:["生物","基因","教育"]},
+{id:246,cat:"创意沙盒",name:"量子纠错艺术",desc:"在量子纠错过程中创作视觉艺术，量子错误成为随机创作元素。",mech:"量子随机、艺术生成、不确定性美学",diff:"中",tags:["量子","艺术","随机"]},
+{id:247,cat:"创意沙盒",name:"梦境绘图仪",desc:"描述梦境的情感和意象，系统生成符合描述的抽象画面。",mech:"情感-视觉映射、程序生成、梦境美学",diff:"易",tags:["梦境","艺术","生成"]},
+{id:248,cat:"创意沙盒",name:"分子料理实验室",desc:"在分子级别设计食物结构，创造改变口感和风味的食品新形态。",mech:"分子料理、物理化学、创意烹饪",diff:"中",tags:["美食","化学","创意"]},
+{id:249,cat:"创意沙盒",name:"城市时光机",desc:"调节时间轴查看同一城市在不同历史时期的变化，叠加对比。",mech:"历史时间轴、城市演变、地理可视化",diff:"易",tags:["历史","城市","时间"]},
+{id:250,cat:"创意沙盒",name:"元素魔法实验室",desc:"混合各种元素魔法，发现稀有组合创造新的魔法效果。",mech:"元素组合系统、魔法生成、发现驱动",diff:"易",tags:["魔法","炼金","发现"]},
+{id:271,cat:"多人对战",name:"信息博弈",desc:"每人拥有不完整信息，通过行动推断对手手牌，最优决策获胜。",mech:"不完全信息博弈、贝叶斯推断、心理博弈",diff:"难",tags:["博弈","多人","策略"]},
+{id:272,cat:"多人对战",name:"节奏同步",desc:"多人同步节拍游戏，保持一致节奏积累连击，团队配合决胜负。",mech:"节奏判定、多人同步、团队合作",diff:"中",tags:["音乐","合作","节奏"]},
+{id:273,cat:"多人对战",name:"势力地图",desc:"实时战略游戏，扩张势力范围，包围对手领地获胜。",mech:"领地争夺、实时策略、地图控制",diff:"中",tags:["领地","RTS","对战"]},
+{id:274,cat:"多人对战",name:"粒子物理对决",desc:"控制粒子加速器，发射粒子流攻击对手，利用磁场偏转防御。",mech:"粒子物理、磁场控制、实时对战",diff:"中",tags:["物理","对战","科学"]},
+{id:275,cat:"多人对战",name:"文字画家对战",desc:"用有限笔划绘制词语，AI和其他玩家猜测，速度和准确率比拼。",mech:"快速绘画、词语猜测、计时挑战",diff:"易",tags:["绘画","猜词","休闲"]},
+{id:276,cat:"多人对战",name:"引力战场",desc:"玩家在引力场中操控飞船，利用行星引力弹弓攻击对手。",mech:"引力弹弓、天体物理、飞船对战",diff:"中",tags:["物理","太空","对战"]},
+{id:277,cat:"多人对战",name:"语言暗战",desc:"用隐晦的语言提示引导队友猜词，不被敌队理解的暗号是关键。",mech:"语言编码、团队暗语、推断博弈",diff:"中",tags:["语言","团队","猜测"]},
+{id:278,cat:"多人对战",name:"围魏救赵",desc:"多人棋盘游戏，通过间接操作迫使对手进入困境。",mech:"间接策略、棋盘博弈、历史典故",diff:"难",tags:["策略","棋类","多人"]},
+{id:279,cat:"多人对战",name:"回声定位竞技",desc:"视野全黑，只能发出声呐定位，在声波世界中竞技搏斗。",mech:"声呐感知、黑暗竞技、听觉博弈",diff:"难",tags:["声音","黑暗","竞技"]},
+{id:280,cat:"多人对战",name:"混沌天气竞速",desc:"赛场天气随机变化，玩家需适应不同天气调整驾驶策略。",mech:"赛车物理、随机天气、适应策略",diff:"中",tags:["赛车","天气","适应"]},
+{id:301,cat:"模拟仿真",name:"血液循环",desc:"模拟心脏和血管系统，诊断各种心血管疾病的成因。",mech:"流体力学、医学可视化、教育诊断",diff:"中",tags:["医学","生物","教育"]},
+{id:302,cat:"模拟仿真",name:"股市模拟交易",desc:"真实市场数据回放，用虚拟资金练习股票交易策略。",mech:"历史数据回放、模拟交易、风险管理",diff:"中",tags:["股市","金融","教育"]},
+{id:303,cat:"模拟仿真",name:"生态系统沙盒",desc:"自由添加各种物种，观察生态网络如何自发达到动态平衡。",mech:"种群动力学、食物网、动态平衡",diff:"中",tags:["生态","生物","模拟"]},
+{id:304,cat:"模拟仿真",name:"轨道力学",desc:"在太阳系中设置卫星轨道，学习开普勒定律和轨道转移。",mech:"轨道力学、开普勒定律、天体物理",diff:"中",tags:["天文","物理","教育"]},
+{id:305,cat:"模拟仿真",name:"城市交通流",desc:"模拟城市交通，调整信号灯策略和路网结构减少拥堵。",mech:"交通流理论、信号优化、城市规划",diff:"中",tags:["城市","交通","优化"]},
+{id:306,cat:"模拟仿真",name:"神经突触",desc:"可视化神经元突触传导，了解神经信号的传递和神经递质作用。",mech:"神经科学、突触物理、医学教育",diff:"中",tags:["神经","医学","教育"]},
+{id:307,cat:"模拟仿真",name:"大气环流",desc:"模拟地球大气环流系统，理解季风、信风和气候分带的形成。",mech:"大气物理、流体动力学、气候教育",diff:"难",tags:["气候","物理","教育"]},
+{id:308,cat:"模拟仿真",name:"地震波传播",desc:"模拟地震波在不同地质构造中的传播路径和能量衰减。",mech:"地震学、波动方程、地质教育",diff:"中",tags:["地质","物理","教育"]},
+{id:309,cat:"模拟仿真",name:"免疫系统防御",desc:"观察并参与免疫系统对病原体的识别和清除过程。",mech:"免疫学、细胞互动、医学教育",diff:"中",tags:["医学","生物","教育"]},
+{id:310,cat:"模拟仿真",name:"熔岩流预测",desc:"模拟火山喷发后熔岩流的流动路径，预测对城市的威胁区域。",mech:"流体力学、地形分析、地质教育",diff:"中",tags:["地质","灾害","教育"]},
+{id:331,cat:"叙事解谜",name:"死亡时刻",desc:"玩家已死，通过观察生者的行动，弄清自己是如何被害的。",mech:"叙事侦探、观察推理、死亡视角",diff:"中",tags:["悬疑","叙事","侦探"]},
+{id:332,cat:"叙事解谜",name:"量子谋杀案",desc:"每次调查观测都改变事件进程，在多个量子分支中拼凑真相。",mech:"量子多世界、叙事分支、侦探推理",diff:"难",tags:["量子","侦探","叙事"]},
+{id:333,cat:"叙事解谜",name:"深空日记",desc:"发现了飞船上废弃的航行日记，从碎片中还原这段悲剧旅程。",mech:"文本解谜、叙事重建、太空悬疑",diff:"中",tags:["太空","悬疑","叙事"]},
+{id:334,cat:"叙事解谜",name:"故宫幽灵",desc:"在故宫中感知幽灵留下的历史记忆，解开宫廷秘史。",mech:"历史叙事、幽灵感知、文化探索",diff:"中",tags:["历史","文化","悬疑"]},
+{id:335,cat:"叙事解谜",name:"最后一封信",desc:"根据一叠历史书信，推断写信者和收信者之间的关系与秘密。",mech:"书信叙事、情感推断、历史重建",diff:"易",tags:["叙事","情感","历史"]},
+{id:336,cat:"叙事解谜",name:"梦境档案馆",desc:"进入他人的梦境档案，通过碎片化梦境了解这人的心理创伤。",mech:"梦境解读、心理叙事、情感解谜",diff:"中",tags:["心理","梦境","叙事"]},
+{id:337,cat:"叙事解谜",name:"倒叙凶案",desc:"从案件最终结果往前倒推，每解锁一个线索还原一个时间点。",mech:"时间倒序、证据链、叙事逆推",diff:"中",tags:["侦探","叙事","推理"]},
+{id:338,cat:"叙事解谜",name:"失忆修复",desc:"主角失忆，通过收集物件触发记忆碎片，逐步恢复身份认知。",mech:"记忆收集、碎片叙事、身份重建",diff:"中",tags:["记忆","身份","叙事"]},
+{id:339,cat:"叙事解谜",name:"语言孤岛",desc:"被困在只说不同语言的孤岛，通过手势和物品建立沟通。",mech:"语言习得模拟、非语言沟通、叙事解谜",diff:"中",tags:["语言","沟通","文化"]},
+{id:340,cat:"叙事解谜",name:"历史分叉点",desc:"在历史关键决策点做出不同选择，观察历史如何因此改变。",mech:"历史叙事、反事实推理、蝴蝶效应",diff:"中",tags:["历史","选择","叙事"]},
+{id:361,cat:"音乐节奏",name:"中国鼓王",desc:"多种中国传统鼓乐器节奏挑战，从简单到复杂的节奏型训练。",mech:"节奏判定、鼓乐教育、文化传承",diff:"中",tags:["音乐","传统","节奏"]},
+{id:362,cat:"音乐节奏",name:"和声数学",desc:"通过调整音程，使多个音符共同组成美妙和声，了解和声学。",mech:"和声理论、数学比例、音乐教育",diff:"中",tags:["和声","数学","音乐"]},
+{id:363,cat:"音乐节奏",name:"旋律侦探",desc:"听片段旋律辨别曲目，速度越来越快，只给几个音符就要判断。",mech:"音乐记忆、旋律识别、竞速解谜",diff:"中",tags:["音乐","识别","挑战"]},
+{id:364,cat:"音乐节奏",name:"声波战士",desc:"弹吉他产生声波，不同节奏的声波具有不同攻击效果。",mech:"音乐格斗、声波物理、节奏攻击",diff:"中",tags:["格斗","音乐","声波"]},
+{id:365,cat:"音乐节奏",name:"民族乐器世界",desc:"探索来自世界各地的民族乐器，学习其演奏技巧和文化背景。",mech:"乐器教育、世界音乐、文化探索",diff:"易",tags:["世界音乐","乐器","文化"]},
+{id:366,cat:"音乐节奏",name:"爵士即兴",desc:"AI伴奏，玩家即兴演奏，系统根据和弦进行评估即兴质量。",mech:"即兴理论、和弦识别、AI伴奏",diff:"难",tags:["爵士","即兴","AI"]},
+{id:367,cat:"音乐节奏",name:"音高体操",desc:"通过身体动作（手势高低）控制音高，在空气中演奏旋律。",mech:"手势控制、音高映射、身体音乐",diff:"中",tags:["音乐","手势","创新"]},
+{id:368,cat:"音乐节奏",name:"节拍师传",desc:"跟随名师学习各种复杂节拍型，从简单的4/4到复杂的混合拍。",mech:"节拍教学、进阶挑战、音乐理论",diff:"中",tags:["节拍","教育","音乐"]},
+{id:369,cat:"音乐节奏",name:"音浪冲浪",desc:"在音乐的波形上冲浪，随音量起伏控制高低，节奏带动操作。",mech:"音量-物理映射、节奏控制、音乐游戏",diff:"中",tags:["音乐","物理","节奏"]},
+{id:370,cat:"音乐节奏",name:"宫廷雅乐",desc:"学习中国古代宫廷雅乐，五声调式、编钟演奏和礼乐文化。",mech:"中国音乐理论、古乐器、文化教育",diff:"中",tags:["古乐","文化","中国"]},
+{id:500,cat:"音乐节奏",name:"宇宙交响乐",desc:"每颗星球按轨道周期演奏一个音，星系的运动构成壮美交响乐。",mech:"行星音乐化、轨道周期、宇宙音景",diff:"易",tags:["宇宙","音乐","天文"]},
+];
+
+const PAGE=30;
+let cur="全部",page=1,sel=null;
+let list=[...D];
+
+function cats(){
+  const all=["全部",...Object.keys(CATS)];
+  document.getElementById("cats").innerHTML=all.map(c=>`<button class="cat-btn${c===cur?" on":""}" onclick="setC('${c}')">${c}</button>`).join("");
+}
+
+function setC(c){cur=c;page=1;list=c==="全部"?[...D]:D.filter(x=>x.cat===c);render();}
+
+function render(){
+  cats();
+  const tot=list.length,tp=Math.ceil(tot/PAGE)||1;
+  const s=(page-1)*PAGE,sl=list.slice(s,s+PAGE);
+  document.getElementById("info").textContent=`共 ${tot} 个创意 · 第 ${page}/${tp} 页`;
+  document.getElementById("grid").innerHTML=sl.map(x=>{
+    const c=CATS[x.cat];
+    return`<div class="card" onclick="show(${x.id})">
+      <div class="card-top">
+        <span class="card-name">#${x.id} ${x.name}</span>
+        <span class="badge" style="background:${c.bg};color:${c.tx}">${x.cat}</span>
+      </div>
+      <div class="card-desc">${x.desc}</div>
+    </div>`;
+  }).join("");
+
+  const pg=document.getElementById("pager");
+  if(tp<=1){pg.innerHTML="";return;}
+  let h=`<button class="pb" onclick="go(${page-1})" ${page===1?"disabled":""}>上一页</button>`;
+  const r=[];for(let i=Math.max(1,page-2);i<=Math.min(tp,page+2);i++)r.push(i);
+  if(r[0]>1)h+=`<button class="pb" onclick="go(1)">1</button>${r[0]>2?'<span class="pi">…</span>':""}`;
+  h+=r.map(i=>`<button class="pb${i===page?" cur":""}" onclick="go(${i})">${i}</button>`).join("");
+  if(r[r.length-1]<tp)h+=`${r[r.length-1]<tp-1?'<span class="pi">…</span>':""}
+<button class="pb" onclick="go(${tp})">${tp}</button>`;
+  h+=`<button class="pb" onclick="go(${page+1})" ${page===tp?"disabled":""}>下一页</button>`;
+  pg.innerHTML=h;
+}
+
+function go(p){const tp=Math.ceil(list.length/PAGE)||1;page=Math.max(1,Math.min(p,tp));render();document.getElementById("root").scrollIntoView({behavior:"smooth"});}
+
+function show(id){
+  sel=D.find(x=>x.id===id);if(!sel)return;
+  const c=CATS[sel.cat];
+  document.getElementById("mh").textContent=`#${sel.id} ${sel.name}`;
+  const mb=document.getElementById("mb");mb.textContent=sel.cat;mb.style.background=c.bg;mb.style.color=c.tx;
+  document.getElementById("md2").textContent=`难度：${sel.diff}`;
+  document.getElementById("md").textContent=sel.desc;
+  document.getElementById("mm2").textContent=sel.mech;
+  document.getElementById("mt").innerHTML=sel.tags.map(t=>`<span class="mtag">${t}</span>`).join("");
+  document.getElementById("overlay").classList.add("open");
+}
+
+function close(){document.getElementById("overlay").classList.remove("open");}
+
+function send(){
+  if(!sel)return;
+  close();
+  sendPrompt(`帮我详细展开设计这个网页游戏：#${sel.id}《${sel.name}》——${sel.desc}。请给出：核心玩法设计、PC和移动端适配方案、技术选型（Canvas/CSS/WebGL等）、界面布局草图、难度曲线设计、可能的变体玩法。`);
+}
+
+render();
+</script>
+</body>
+</html>
