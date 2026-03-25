@@ -2,150 +2,161 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>HDR 专业着色工具 (含ICC配置)</title>
+    <title>P3 专业级 HDR 卷积着色引擎</title>
     <style>
-        :root { --accent: #00f2fe; }
-        body { font-family: system-ui; background: #0f0f0f; color: #fff; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { max-width: 1100px; width: 100%; background: #1a1a1a; padding: 30px; border-radius: 16px; border: 1px solid #333; }
-        .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-bottom: 30px; }
-        .control-group { background: #252525; padding: 15px; border-radius: 8px; }
-        label { display: block; margin-bottom: 10px; font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-        input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
-        .preview-container { background: #000; border-radius: 12px; overflow: hidden; position: relative; min-height: 500px; display: flex; justify-content: center; align-items: center; border: 1px solid #333; }
-        canvas { max-width: 100%; max-height: 75vh; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
-        .actions { margin-top: 25px; display: flex; gap: 15px; justify-content: center; }
-        button { padding: 12px 30px; border: none; border-radius: 50px; font-weight: 600; cursor: pointer; transition: 0.3s; }
-        .btn-primary { background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%); color: #000; }
-        .btn-success { background: #28a745; color: white; }
-        button:hover { transform: scale(1.05); filter: brightness(1.1); }
-        button:disabled { background: #444; color: #777; transform: none; }
-        .info-tag { font-size: 12px; color: #4facfe; margin-top: 10px; text-align: center; }
+        :root { --bg: #09090b; --panel: #18181b; --accent: #f4f4f5; }
+        body { background: var(--bg); color: #fff; font-family: system-ui, -apple-system; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .wrapper { width: 90vw; max-width: 1200px; }
+        .view-frame { width: 100%; border-radius: 20px; border: 2px dashed #3f3f46; min-height: 50vh; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #000; box-shadow: 0 0 40px rgba(0,0,0,0.5); }
+        canvas { max-width: 100%; max-height: 80vh; object-fit: contain; }
+        .controls { background: var(--panel); border-radius: 16px; margin-top: 20px; padding: 25px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .control-item { display: flex; flex-direction: column; gap: 10px; }
+        label { font-size: 13px; text-transform: uppercase; color: #a1a1aa; letter-spacing: 1px; }
+        input[type="range"] { -webkit-appearance: none; width: 100%; background: #27272a; height: 6px; border-radius: 3px; outline: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; background: var(--accent); border-radius: 50%; cursor: pointer; border: 4px solid var(--panel); }
+        .btn-group { grid-column: 1 / -1; display: flex; gap: 15px; }
+        button { flex: 1; padding: 18px; border: none; border-radius: 12px; font-weight: 700; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        .btn-up { background: #fff; color: #000; }
+        .btn-up:hover { background: #e4e4e7; }
+        .btn-dl { background: #27272a; color: #a1a1aa; }
+        .btn-dl:not(:disabled) { background: #f43f5e; color: #fff; }
+        .btn-dl:not(:disabled):hover { background: #e11d48; }
+        .btn-dl:disabled { cursor: not-allowed; opacity: 0.5; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1 style="text-align:center; margin-top:0;">HDR 专业着色引擎</h1>
-    
+<div class="wrapper">
+    <div class="view-frame">
+        <canvas id="cvs"></canvas>
+    </div>
+
     <div class="controls">
-        <div class="control-group">
-            <label>动态范围强度 (Real HDR)</label>
-            <input type="range" id="hdrPower" min="0" max="200" value="100">
+        <div class="control-item">
+            <label>暗部局部对比度 (暗部着色层)</label>
+            <input type="range" id="local" min="0" max="200" value="80">
         </div>
-        <div class="control-group">
-            <label>暗部着色补偿</label>
-            <input type="range" id="shadows" min="0" max="100" value="20">
+        <div class="control-item">
+            <label>高光爆发系数 (通透感)</label>
+            <input type="range" id="peak" min="100" max="300" value="130">
         </div>
-        <div class="control-group">
-            <label>P3 色域饱和度</label>
-            <input type="range" id="p3Sat" min="50" max="150" value="110">
+        <div class="btn-group">
+            <input type="file" id="f_in" hidden accept="image/*">
+            <button class="btn-up" onclick="document.getElementById('f_in').click()">导入高码率照片</button>
+            <button class="btn-dl" id="f_out" disabled>导出高品质 P3 PNG</button>
         </div>
     </div>
-
-    <div class="preview-container">
-        <canvas id="mainCanvas"></canvas>
-        <p id="dropText">将高码率照片拖入此处</p>
-    </div>
-
-    <div class="actions">
-        <input type="file" id="loader" hidden accept="image/*">
-        <button class="btn-primary" onclick="document.getElementById('loader').click()">导入原图</button>
-        <button class="btn-success" id="exportBtn" disabled>导出含ICC的PNG文件</button>
-    </div>
-    <div class="info-tag">当前状态：支持 Display-P3 色彩管理 | 导出格式：PNG-24 (Managed ICC)</div>
 </div>
 
 <script>
-    const canvas = document.getElementById('mainCanvas');
-    // 关键：启用显式的色彩管理空间
-    const ctx = canvas.getContext('2d', { 
-        colorSpace: 'display-p3', 
-        willReadFrequently: true 
-    });
-    
-    let sourceImg = null;
+    const cvs = document.getElementById('cvs');
+    // 强制使用 Display P3 色彩空间，拒绝 sRGB 假色彩
+    const ctx = cvs.getContext('2d', { colorSpace: 'display-p3' });
+    let rawImg = null;
 
-    document.getElementById('loader').onchange = (e) => {
-        const file = e.target.files[0];
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
-            sourceImg = img;
-            canvas.width = img.width;
-            canvas.height = img.height;
-            document.getElementById('dropText').style.display = 'none';
-            render();
-            document.getElementById('exportBtn').disabled = false;
+    document.getElementById('f_in').onchange = (e) => {
+        const r = new FileReader();
+        r.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                rawImg = img;
+                cvs.width = img.width;
+                cvs.height = img.height;
+                process();
+                document.getElementById('f_out').disabled = false;
+            };
+            img.src = ev.target.result;
         };
-        img.src = url;
+        r.readAsDataURL(e.target.files[0]);
     };
 
-    const sliders = ['hdrPower', 'shadows', 'p3Sat'];
-    sliders.forEach(id => {
-        document.getElementById(id).oninput = render;
-    });
+    [local, peak].forEach(s => s.oninput = process);
 
-    function render() {
-        if (!sourceImg) return;
+    // 卷积模糊函数：用于提取“局部区域平均亮度”
+    function blur(pixels, w, h) {
+        const dst = new Float32Array(w * h);
+        const kernel = [
+            1/9, 1/9, 1/9,
+            1/9, 1/9, 1/9,
+            1/9, 1/9, 1/9
+        ];
+        // 简单 3x3 均值卷积
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                let sum = 0;
+                for (let ky = -1; ky <= 1; ky++) {
+                    for (let kx = -1; kx <= 1; kx++) {
+                        sum += pixels[(y+ky)*w + (x+kx)] * kernel[(ky+1)*3+(kx+1)];
+                    }
+                }
+                dst[y*w + x] = sum;
+            }
+        }
+        return dst;
+    }
 
-        // 1. 绘制初始帧（在 P3 空间运行）
-        ctx.drawImage(sourceImg, 0, 0);
+    function process() {
+        if (!rawImg) return;
+        ctx.drawImage(rawImg, 0, 0);
         
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height, { colorSpace: 'display-p3' });
+        const w = cvs.width;
+        const h = cvs.height;
+        const imgData = ctx.getImageData(0, 0, w, h, { colorSpace: 'display-p3' });
         const data = imgData.data;
 
-        const hdr = document.getElementById('hdrPower').value / 100;
-        const shadowBoost = document.getElementById('shadows').value / 100;
-        const sat = document.getElementById('p3Sat').value / 100;
+        const p_local = document.getElementById('local').value / 100;
+        const p_peak = document.getElementById('peak').value / 100;
 
+        // 创建临时数组处理亮度层
+        const lumaArray = new Float32Array(w * h);
+        
         for (let i = 0; i < data.length; i += 4) {
+            // 计算 P3 亮度
+            lumaArray[i/4] = (0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2]) / 255;
+        }
+
+        // 核心步骤 1：生成局部平均亮度层（模糊处理）
+        const localLumaArray = blur(lumaArray, w, h);
+
+        // 核心步骤 2：应用高级着色公式
+        for (let i = 0; i < data.length; i += 4) {
+            const idx = i / 4;
             let r = data[i] / 255;
             let g = data[i+1] / 255;
             let b = data[i+2] / 255;
+            const luma = lumaArray[idx];
+            const localLuma = localLumaArray[idx];
 
-            // 亮度提取
-            const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            // A. 局部对比度增强（暗部着色层）：
+            // 原理：如果当前像素比周围暗，就让它更暗；比周围亮，就让它更亮。
+            // 公式：L_new = L + Intensity * (L - L_local_average)
+            const diff = luma - localLuma;
+            let enhancedLuma = luma + diff * p_local;
 
-            // 2. 真实 HDR 曲线映射 (Reinhard Tone Mapping 变体)
-            // 不只是改亮度，而是对高光进行非线性压缩，给暗部“着色”
-            let mappedLum = lum * (1 + lum * hdr) / (1 + lum);
-            
-            // 3. 暗部细节增强 (Shadow Lifting)
-            if (lum < 0.3) {
-                mappedLum += (0.3 - lum) * shadowBoost;
+            // B. 高光处理：
+            // 使用非线性指数，对增强后的高光部分进行再拉伸，形成爆发感
+            if (enhancedLuma > 0.5) {
+                enhancedLuma = Math.pow(enhancedLuma, p_peak);
             }
 
-            const scale = mappedLum / (lum + 0.0001);
-            r *= scale;
-            g *= scale;
-            b *= scale;
-
-            // 4. 色彩空间校准 (Color Saturation in P3)
-            const average = (r + g + b) / 3;
-            r = average + (r - average) * sat;
-            g = average + (g - average) * sat;
-            b = average + (b - average) * sat;
-
-            // 回填并限幅
-            data[i] = Math.max(0, Math.min(255, r * 255));
-            data[i+1] = Math.max(0, Math.min(255, g * 255));
-            data[i+2] = Math.max(0, Math.min(255, b * 255));
+            // C. 重新着色：保持色相，应用新的亮度
+            const scale = Math.max(0, enhancedLuma) / (luma + 0.0001);
+            
+            // D. 应用 Display P3 的厚重色彩增益
+            data[i]   = Math.max(0, Math.min(255, r * scale * 255 * 1.05)); // 稍微加强红色通道
+            data[i+1] = Math.max(0, Math.min(255, g * scale * 255 * 1.02)); 
+            data[i+2] = Math.max(0, Math.min(255, b * scale * 255));
         }
-
         ctx.putImageData(imgData, 0, 0);
     }
 
-    // 5. 导出逻辑：保持色彩配置文件
-    document.getElementById('exportBtn').onclick = () => {
-        // 在支持 P3 的浏览器中，toBlob 会根据 context 的 colorSpace 写入相应的色彩标签
-        canvas.toBlob((blob) => {
-            const link = document.createElement('a');
-            link.download = `Professional_HDR_P3_${Date.now()}.png`;
-            link.href = URL.createObjectURL(blob);
-            link.click();
-        }, 'image/png');
+    document.getElementById('f_out').onclick = () => {
+        // 虽然导出的只是 SDR PNG，但在 P3 色域下进行过卷积着色，品质极高
+        const lnk = document.createElement('a');
+        lnk.download = `HDR_Convolution_P3_${Date.now()}.png`;
+        lnk.href = cvs.toDataURL('image/png', 1.0);
+        lnk.click();
     };
 </script>
-
 </body>
 </html>
