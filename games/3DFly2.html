@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Synthwave Drift - 霓虹幻影</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #050510; font-family: 'Courier New', Courier, monospace; user-select: none; }
+        
+        /* 赛博朋克 UI 风格 */
+        .hud {
+            position: absolute; color: #fff; text-shadow: 0 0 10px #f0f, 0 0 20px #0ff;
+            pointer-events: none; z-index: 10;
+        }
+        #score-display { top: 20px; left: 30px; font-size: 32px; font-weight: bold; font-style: italic; }
+        #speed-display { bottom: 20px; right: 30px; font-size: 20px; color: #0ff; }
+
+        /* 菜单面板 */
+        .panel {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(20,0,40,0.8) 0%, rgba(0,0,0,0.95) 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 20; color: white; text-align: center; backdrop-filter: blur(5px);
+        }
+        
+        h1 { font-size: 60px; margin: 0; color: transparent; -webkit-text-stroke: 2px #0ff; text-shadow: 0 0 20px #0ff, 0 0 40px #f0f; text-transform: uppercase; letter-spacing: 5px; }
+        p { font-size: 18px; color: #aaa; max-width: 400px; line-height: 1.5; margin-bottom: 40px; }
+        .highlight { color: #f0f; font-weight: bold; text-shadow: 0 0 5px #f0f; }
+
+        button {
+            padding: 15px 40px; font-size: 24px; font-weight: bold; font-family: inherit;
+            color: #000; background: #0ff; border: none; border-radius: 4px; cursor: pointer;
+            box-shadow: 0 0 15px #0ff, inset 0 0 10px #fff; transition: all 0.2s; text-transform: uppercase;
+        }
+        button:hover { background: #fff; box-shadow: 0 0 30px #0ff, 0 0 50px #f0f; transform: scale(1.05); }
+        button:active { transform: scale(0.95); }
+
+        #game-over { display: none; }
+        #final-score { font-size: 48px; color: #f0f; text-shadow: 0 0 20px #f0f; display: block; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div id="score-display" class="hud">SCORE: 0</div>
+    <div id="speed-display" class="hud">MACH 1.0</div>
+
+    <div id="start-menu" class="panel">
+        <h1>Neon Drift</h1>
+        <p>电脑：鼠标控制轨迹<br>手机：倾斜设备驾驶<br><span class="highlight">警告：速度会不断提升，注意躲避红晶体！</span></p>
+        <button id="btn-start">System Start</button>
+    </div>
+
+    <div id="game-over" class="panel">
+        <h1 style="-webkit-text-stroke: 2px #f00; text-shadow: 0 0 20px #f00;">CRASHED</h1>
+        <span id="final-score">0</span>
+        <button id="btn-restart">Reboot Sequence</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- 系统状态 ---
+        let state = 'START'; // START, PLAYING, GAMEOVER
+        let score = 0, speed = 1.0, distance = 0;
+        let clock = new THREE.Clock();
+
+        // --- 核心对象 ---
+        let scene, camera, renderer, composer;
+        let player, playerCore, playerBB;
+        let ground, gridTexture;
+        let targetPos = new THREE.Vector2(0, 0);
+        
+        // --- 对象池 ---
+        const obstaclePool = [];
+        const activeObstacles = [];
+        const particlePool = [];
+
+        // --- 初始化场景 ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x0a001a, 0.015); // 赛博朋克紫底雾气
+
+            camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 500);
+            camera.position.set(0, 2, 8);
+
+            // 渲染器开启高性能模式
+            renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ReinhardToneMapping;
+            document.body.appendChild(renderer.domElement);
+
+            // --- 真正的灵魂：Bloom 后期发光特效 ---
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0.2;
+            bloomPass.strength = 2.0; // 发光强度
+            bloomPass.radius = 0.5;
+
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+
+            createWorld();
+            createPlayer();
+            initPools();
+            setupInputs();
+
+            window.addEventListener('resize', onWindowResize);
+
+            // 绑定按钮
+            document.getElementById('btn-start').addEventListener('click', startGame);
+            document.getElementById('btn-restart').addEventListener('click', resetGame);
+
+            // 启动渲染循环
+            animate();
+        }
+
+        // --- 创造赛博朋克世界 ---
+        function createWorld() {
+            // 环境光与平行光
+            scene.add(new THREE.AmbientLight(0x222244));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(0, 10, -10);
+            scene.add(dirLight);
+
+            // 动态发光网格地面 (利用 Canvas 绘制完美网格，无需外部图片)
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const context = canvas.getContext('2d');
+            context.fillStyle = '#050510';
+            context.fillRect(0, 0, 512, 512);
+            context.strokeStyle = '#00ffff';
+            context.lineWidth = 4;
+            context.shadowBlur = 10;
+            context.shadowColor = '#00ffff';
+            context.strokeRect(0, 0, 512, 512);
+            // 十字交叉线
+            context.beginPath();
+            context.moveTo(256, 0); context.lineTo(256, 512);
+            context.moveTo(0, 256); context.lineTo(512, 256);
+            context.stroke();
+
+            gridTexture = new THREE.CanvasTexture(canvas);
+            gridTexture.wrapS = THREE.RepeatWrapping;
+            gridTexture.wrapT = THREE.RepeatWrapping;
+            gridTexture.repeat.set(20, 100); // 重复贴图
+
+            const groundGeo = new THREE.PlaneGeometry(100, 500);
+            const groundMat = new THREE.MeshBasicMaterial({ 
+                map: gridTexture, 
+                transparent: true, 
+                opacity: 0.8 
+            });
+            ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -2;
+            ground.position.z = -200;
+            scene.add(ground);
+        }
+
+        // --- 玩家飞船/球体 ---
+        function createPlayer() {
+            player = new THREE.Group();
+            
+            // 核心发光体
+            const coreGeo = new THREE.SphereGeometry(0.5, 32, 32);
+            const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            playerCore = new THREE.Mesh(coreGeo, coreMat);
+            
+            // 外层能量罩
+            const shellGeo = new THREE.IcosahedronGeometry(0.7, 1);
+            const shellMat = new THREE.MeshPhongMaterial({
+                color: 0x000000,
+                emissive: 0x00ffff,
+                emissiveIntensity: 0.5,
+                wireframe: true
+            });
+            const shell = new THREE.Mesh(shellGeo, shellMat);
+
+            player.add(playerCore);
+            player.add(shell);
+            scene.add(player);
+
+            playerBB = new THREE.Box3();
+        }
+
+        // --- 对象池初始化 (性能优化) ---
+        function initPools() {
+            // 预生成 30 个障碍物
+            const obsGeo = new THREE.OctahedronGeometry(1.2, 0); // 更有棱角的几何体
+            const obsMat = new THREE.MeshPhongMaterial({
+                color: 0x000000,
+                emissive: 0xff0055, // 危险的红色
+                emissiveIntensity: 2.0,
+                flatShading: true
+            });
+
+            for(let i=0; i<30; i++){
+                const mesh = new THREE.Mesh(obsGeo, obsMat);
+                mesh.visible = false;
+                scene.add(mesh);
+                obstaclePool.push(mesh);
+            }
+        }
+
+        // --- 从池中取出障碍物并放置 ---
+        function spawnObstacle() {
+            if(obstaclePool.length === 0) return; // 池空了就等回收
+            
+            const obs = obstaclePool.pop();
+            obs.visible = true;
+            
+            // 生成逻辑：随着分数提高，更倾向于瞄准玩家当前位置
+            if(Math.random() < 0.3 + (score * 0.005)) {
+                // 瞄准玩家区域
+                obs.position.x = player.position.x + (Math.random()-0.5) * 4;
+                obs.position.y = Math.max(-1, player.position.y + (Math.random()-0.5) * 4);
+            } else {
+                // 随机分布
+                obs.position.x = (Math.random() - 0.5) * 20;
+                obs.position.y = (Math.random() - 0.5) * 10;
+            }
+            
+            obs.position.z = camera.position.z - 150 - Math.random() * 50; // 生成在远处
+            
+            // 随机旋转
+            obs.userData.rotX = (Math.random() - 0.5) * 0.1;
+            obs.userData.rotY = (Math.random() - 0.5) * 0.1;
+
+            activeObstacles.push(obs);
+        }
+
+        // --- 控制输入 (解决权限问题) ---
+        function setupInputs() {
+            window.addEventListener('mousemove', (e) => {
+                if(state !== 'PLAYING') return;
+                targetPos.x = (e.clientX / window.innerWidth - 0.5) * 2;
+                targetPos.y = -(e.clientY / window.innerHeight - 0.5) * 2;
+            });
+
+            window.addEventListener('deviceorientation', (e) => {
+                if(state !== 'PLAYING' || !e.gamma) return;
+                targetPos.x = THREE.MathUtils.clamp(e.gamma / 30, -1, 1);
+                targetPos.y = THREE.MathUtils.clamp((e.beta - 45) / 30, -1, 1);
+            });
+        }
+
+        function requestMobilePermission() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().catch(console.error);
+            }
+        }
+
+        // --- 游戏流程控制 ---
+        function startGame() {
+            requestMobilePermission(); // 用户的首次点击可以激活权限
+            document.getElementById('start-menu').style.display = 'none';
+            resetGameLogic();
+            state = 'PLAYING';
+        }
+
+        function resetGame() {
+            document.getElementById('game-over').style.display = 'none';
+            resetGameLogic();
+            state = 'PLAYING';
+        }
+
+        function resetGameLogic() {
+            score = 0;
+            speed = 1.0;
+            targetPos.set(0, 0);
+            player.position.set(0, 0, 0);
+            player.rotation.set(0, 0, 0);
+            camera.position.set(0, 2, 8);
+            
+            document.getElementById('score-display').innerText = `SCORE: 0`;
+            document.getElementById('speed-display').innerText = `MACH 1.0`;
+
+            // 回收所有活跃障碍物到池子中
+            for(let i = activeObstacles.length - 1; i >= 0; i--){
+                const obs = activeObstacles[i];
+                obs.visible = false;
+                obstaclePool.push(obs);
+            }
+            activeObstacles.length = 0;
+            clock.getDelta(); // 重置时钟
+        }
+
+        function triggerGameOver() {
+            state = 'GAMEOVER';
+            document.getElementById('game-over').style.display = 'flex';
+            document.getElementById('final-score').innerText = score;
+            
+            // 相机震动特效 (撞车感)
+            camera.position.x += (Math.random()-0.5) * 2;
+            camera.position.y += (Math.random()-0.5) * 2;
+        }
+
+        // --- 主渲染循环 ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (state === 'PLAYING') {
+                // 1. 地面纹理滚动 (产生极速前进的错觉)
+                gridTexture.offset.y -= speed * delta * 2;
+
+                // 2. 玩家平滑移动与物理姿态
+                const limitX = targetPos.x * 12;
+                const limitY = THREE.MathUtils.clamp(targetPos.y * 6, -1.5, 6); // 防止钻入地下
+                
+                player.position.x += (limitX - player.position.x) * 10 * delta;
+                player.position.y += (limitY - player.position.y) * 10 * delta;
+                
+                // 动态倾角：往左飞船就往左侧倾，往上就抬起机头
+                const targetRotationZ = -targetPos.x * Math.PI / 3;
+                const targetRotationX = targetPos.y * Math.PI / 6;
+                player.rotation.z += (targetRotationZ - player.rotation.z) * 10 * delta;
+                player.rotation.x += (targetRotationX - player.rotation.x) * 10 * delta;
+                
+                // 核心晶体自转
+                player.children[1].rotation.y += delta;
+                player.children[1].rotation.x += delta * 0.5;
+
+                // 更新玩家碰撞盒 (精确)
+                playerBB.setFromObject(playerCore);
+
+                // 3. 动态相机跟随 (带有一点滞后感)
+                camera.position.x += (player.position.x * 0.4 - camera.position.x) * 5 * delta;
+                camera.position.y += (2 + player.position.y * 0.3 - camera.position.y) * 5 * delta;
+                camera.lookAt(0, 0, -20); // 始终看向远方
+
+                // 4. 生成障碍物控制 (速度越快，生成越快)
+                distance += speed * delta;
+                if(distance > 5) { // 每前进一段距离生成一个
+                    spawnObstacle();
+                    distance = 0;
+                }
+
+                // 5. 障碍物逻辑与碰撞检测
+                for (let i = activeObstacles.length - 1; i >= 0; i--) {
+                    const obs = activeObstacles[i];
+                    
+                    // 障碍物迎面飞来
+                    obs.position.z += speed * 60 * delta;
+                    obs.rotation.x += obs.userData.rotX;
+                    obs.rotation.y += obs.userData.rotY;
+
+                    // AABB 碰撞检测
+                    const obsBB = new THREE.Box3().setFromObject(obs);
+                    if (playerBB.intersectsBox(obsBB)) {
+                        triggerGameOver();
+                    }
+
+                    // 越过相机的障碍物，回收
+                    if (obs.position.z > camera.position.z + 5) {
+                        obs.visible = false;
+                        obstaclePool.push(obs); // 放回池子
+                        activeObstacles.splice(i, 1); // 从活跃数组移除
+                        
+                        score += 10;
+                        document.getElementById('score-display').innerText = `SCORE: ${score}`;
+                        
+                        // 每 100 分加速一次
+                        if (score % 100 === 0) {
+                            speed += 0.2;
+                            document.getElementById('speed-display').innerText = `MACH ${speed.toFixed(1)}`;
+                            // 加速视觉反馈：稍微拉大相机 FOV 产生速度感
+                            camera.fov = Math.min(100, camera.fov + 5);
+                            camera.updateProjectionMatrix();
+                        }
+                    }
+                }
+            } else if (state === 'GAMEOVER') {
+                // 死亡后缓慢坠落自转
+                player.rotation.x += delta;
+                player.rotation.y += delta;
+                player.position.y -= delta * 2;
+            }
+
+            // 使用 Composer 渲染后期特效 (取代 renderer.render)
+            composer.render();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        init();
+    </script>
+</body>
+</html>
