@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pretext 风格：高性能文字避让引擎</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f4f4f5;
+            color: #18181b;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            margin: 0;
+        }
+        h1 { font-size: 1.5rem; margin-bottom: 10px; }
+        p.desc { max-width: 600px; text-align: center; color: #52525b; margin-bottom: 30px; line-height: 1.6; }
+        canvas {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05), 0 1px 3px rgba(0,0,0,0.1);
+            cursor: grab;
+            user-select: none;
+        }
+        canvas:active { cursor: grabbing; }
+    </style>
+</head>
+<body>
+
+    <h1>动态文字避让 (Pretext 理念展示)</h1>
+    <p class="desc">
+        拖拽下方画布中的<strong>红色小球</strong>。程序已在初始化时（Prepare）缓存了所有单字宽度，拖拽时（Layout）仅使用纯数学运算重新分配行宽并直接绘制，做到了脱离 DOM 回流的高帧率动态排版！
+    </p>
+
+    <canvas id="stage" width="700" height="450"></canvas>
+
+    <script>
+        // 1. 初始化演示文本 (模拟长文)
+        const templateText = "在前端界面开发中，由 Cheng Lou 开源的 Pretext 库通过彻底脱离 DOM 的方式重新定义了网页文字排版。它先将段落文字拆解，利用 Canvas 的 measureText 方法进行一次性预计算（缓存每个字的尺寸），随后在布局阶段仅依赖纯数学几何运算来完成极速重排。传统 DOM 遇到高频排版变化（例如动画中穿插的浮动元素）时会引发极为昂贵的回流（Reflow），而基于 Pretext 核心理念的渲染引擎则几乎是零成本的。这段独立的代码演示正是复刻了该库爆火的「文字避让障碍物」特性。当你用鼠标随意拖拽这个红色的圆形障碍物时，由于所有的文字段落宽高数据已经提前存在内存中，浏览器当前只需要计算简单的几何线段交集，便可以以每秒数百帧的极高帧率让文字如流水般丝滑地避开障碍物，再无掉帧之忧。这，就是计算与渲染分离的魅力所在。";
+        const rawText = templateText.repeat(8);
+
+        const canvas = document.getElementById('stage');
+        const ctx = canvas.getContext('2d');
+        
+        // 排版参数
+        const font = "16px system-ui, -apple-system, sans-serif";
+        const lineHeight = 28;
+        const padding = 20;
+
+        // 2. Prepare 阶段 (一次性重计算字宽，对应 pretext 中的 prepare 逻辑)
+        ctx.font = font;
+        // 中文排版简单起见按单字符拆分，英文通常按单词拆分
+        const segments = rawText.split('').map(char => {
+            return { char, width: ctx.measureText(char).width };
+        });
+
+        // 3. 障碍物状态
+        let orb = { x: 350, y: 225, r: 45 };
+        let isDragging = false;
+
+        // 4. 绑定交互事件
+        canvas.addEventListener('mousedown', e => {
+            const rect = canvas.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+            // 判定点击是否在圆内
+            if (Math.hypot(mx - orb.x, my - orb.y) <= orb.r) isDragging = true;
+        });
+
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const rect = canvas.getBoundingClientRect();
+            orb.x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            orb.y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            
+            // 限制小球不要拖出画布边界
+            orb.x = Math.max(orb.r + padding, Math.min(canvas.width - orb.r - padding, orb.x));
+            orb.y = Math.max(orb.r + padding, Math.min(canvas.height - orb.r - padding, orb.y));
+            
+            render(); // 纯数学重新计算并绘制
+        });
+
+        // 5. Layout & Render 阶段 (纯计算与绘制)
+        function render() {
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制文字基本设置
+            ctx.fillStyle = '#3f3f46';
+            ctx.font = font;
+            ctx.textBaseline = 'top';
+            
+            let currentSegIndex = 0;
+            let currentY = padding;
+            
+            // 遍历并计算每一行
+            while (currentSegIndex < segments.length && currentY < canvas.height - padding) {
+                // 行的中轴线 Y 坐标
+                const lineCenterY = currentY + lineHeight / 2;
+                // 行到圆心的垂直距离
+                const dy = Math.abs(lineCenterY - orb.y);
+                
+                let spans = [];
+                const avoidRadius = orb.r + 14; // 避让边界（小球半径 + 安全留白）
+                
+                // 碰撞检测：如果线与圆相交，求相交线段
+                if (dy < avoidRadius) {
+                    const dx = Math.sqrt(avoidRadius * avoidRadius - dy * dy);
+                    const blockStart = orb.x - dx;
+                    const blockEnd = orb.x + dx;
+                    
+                    // 将一行切割为障碍物左侧和右侧两段
+                    if (blockStart > padding) {
+                        spans.push({ x: padding, w: blockStart - padding });
+                    }
+                    if (blockEnd < canvas.width - padding) {
+                        spans.push({ x: blockEnd, w: canvas.width - padding - blockEnd });
+                    }
+                } else {
+                    // 没有碰撞，给整行可用宽度
+                    spans.push({ x: padding, w: canvas.width - padding * 2 });
+                }
+                
+                // 将准备好的文字按顺序塞入算好的可用水平区间（Spans）
+                for (let span of spans) {
+                    let currentX = span.x;
+                    while (currentSegIndex < segments.length) {
+                        let seg = segments[currentSegIndex];
+                        // 换行/换段判断：当前空间塞不下了
+                        if (currentX + seg.width > span.x + span.w) {
+                            break; 
+                        }
+                        ctx.fillText(seg.char, currentX, currentY);
+                        currentX += seg.width;
+                        currentSegIndex++;
+                    }
+                }
+                currentY += lineHeight;
+            }
+
+            // 绘制处于上层的小球
+            ctx.beginPath();
+            ctx.arc(orb.x, orb.y, orb.r, 0, Math.PI * 2);
+            ctx.fillStyle = '#ef4444';
+            ctx.fill();
+            // 小球高光
+            ctx.beginPath();
+            ctx.arc(orb.x - 15, orb.y - 15, 8, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.fill();
+        }
+
+        // 初始渲染
+        render();
+    </script>
+</body>
+</html>
