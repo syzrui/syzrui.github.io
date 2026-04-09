@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Safari 屏幕触摸测试</title>
+    <title>Safari 触摸精准度测试</title>
     <style>
-        /* 禁止所有默认行为，确保测试准确 */
         * {
             touch-action: none;
             user-select: none;
@@ -28,98 +27,140 @@
             display: block;
         }
 
+        /* 顶部信息栏 */
         #info {
             position: absolute;
             top: env(safe-area-inset-top, 20px);
             left: 20px;
             pointer-events: none;
             text-shadow: 1px 1px 2px black;
+            z-index: 10;
         }
 
-        .btn-clear {
+        /* 底部控制栏 */
+        .controls {
             position: absolute;
             bottom: env(safe-area-inset-bottom, 20px);
-            right: 20px;
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid white;
-            color: white;
-            border-radius: 8px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 0 20px;
             z-index: 100;
+        }
+
+        button {
+            padding: 12px 18px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            border-radius: 10px;
+            font-size: 14px;
+            backdrop-filter: blur(5px);
+        }
+
+        button.active {
+            background: #007AFF;
+            border-color: #007AFF;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
 
     <div id="info">
-        <h2 style="margin:0">触摸区域测试</h2>
-        <p id="coords">请触摸屏幕进行测试</p>
-        <p id="count">当前点数: 0</p>
+        <div style="font-size: 18px; font-weight: bold;">屏幕触摸测试</div>
+        <div id="coords" style="font-size: 12px; opacity: 0.8; margin-top: 4px;">等待触摸...</div>
     </div>
 
-    <button class="btn-clear" onclick="clearCanvas()">清空画布</button>
+    <div class="controls">
+        <button id="btnPoint" class="active" onclick="setMode('point')">仅圆点</button>
+        <button id="btnLine" onclick="setMode('line')">连线模式</button>
+        <button onclick="clearCanvas()" style="margin-left: 10px; opacity: 0.7;">清空</button>
+    </div>
+
     <canvas id="testCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('testCanvas');
         const ctx = canvas.getContext('2d');
         const coordsText = document.getElementById('coords');
-        const countText = document.getElementById('count');
         
-        // 存储当前触控点颜色
         const colors = ['#FF3B30', '#4CD964', '#007AFF', '#FFCC00', '#5856D6', '#FF9500'];
-        let activeTouches = {};
+        const radius = 3; // 你要求的半径
+        let currentMode = 'point'; // point 或 line
+        let lastPositions = {}; // 记录上一次触控位置，用于划线
 
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            // 背景重绘
-            ctx.fillStyle = '#1a1a1a';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            clearCanvas();
         }
 
-        window.addEventListener('resize', resize);
-        resize();
-
-        function handleTouch(e) {
-            // 阻止 Safari 的下拉刷新和缩放
-            e.preventDefault();
-            
-            const touches = e.touches;
-            countText.innerText = `当前点数: ${touches.length}`;
-
-            // 遍历所有触控点
-            for (let i = 0; i < touches.length; i++) {
-                const touch = touches[i];
-                const x = touch.clientX;
-                const y = touch.clientY;
-
-                // 绘制轨迹（实线）
-                ctx.beginPath();
-                ctx.fillStyle = colors[i % colors.length];
-                ctx.arc(x, y, 15, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 更新坐标文字
-                if (i === 0) {
-                    coordsText.innerText = `坐标: X:${Math.round(x)} Y:${Math.round(y)}`;
-                }
-            }
-        }
-
-        // 清空功能
         function clearCanvas() {
             ctx.fillStyle = '#1a1a1a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
-        // 绑定事件
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('btnPoint').classList.toggle('active', mode === 'point');
+            document.getElementById('btnLine').classList.toggle('active', mode === 'line');
+        }
+
+        function handleTouch(e) {
+            e.preventDefault();
+            const touches = e.changedTouches;
+
+            for (let i = 0; i < touches.length; i++) {
+                const touch = touches[i];
+                const id = touch.identifier;
+                const x = touch.clientX;
+                const y = touch.clientY;
+                const color = colors[id % colors.length];
+
+                if (e.type === 'touchstart' || e.type === 'touchmove') {
+                    
+                    if (currentMode === 'line' && lastPositions[id]) {
+                        // 连线逻辑
+                        ctx.beginPath();
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = radius * 2;
+                        ctx.lineCap = 'round';
+                        ctx.moveTo(lastPositions[id].x, lastPositions[id].y);
+                        ctx.lineTo(x, y);
+                        ctx.stroke();
+                    } else {
+                        // 圆点逻辑
+                        ctx.beginPath();
+                        ctx.fillStyle = color;
+                        ctx.arc(x, y, radius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // 记录当前坐标供下次连线使用
+                    lastPositions[id] = { x, y };
+
+                    // 更新信息文字
+                    if (i === 0) {
+                        coordsText.innerText = `ID:${id} | X:${Math.round(x)} Y:${Math.round(y)} | 模式:${currentMode === 'line' ? '连线' : '点'}`;
+                    }
+                }
+
+                if (e.type === 'touchend' || e.type === 'touchcancel') {
+                    delete lastPositions[id];
+                }
+            }
+        }
+
+        window.addEventListener('resize', resize);
         canvas.addEventListener('touchstart', handleTouch, { passive: false });
         canvas.addEventListener('touchmove', handleTouch, { passive: false });
-        canvas.addEventListener('touchend', (e) => {
-            countText.innerText = `当前点数: ${e.touches.length}`;
-        }, { passive: false });
+        canvas.addEventListener('touchend', handleTouch, { passive: false });
+        canvas.addEventListener('touchcancel', handleTouch, { passive: false });
 
+        resize();
     </script>
 </body>
 </html>
