@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Safari 屏幕触摸测试</title>
+    <style>
+        /* 禁止所有默认行为，确保测试准确 */
+        * {
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #info {
+            position: absolute;
+            top: env(safe-area-inset-top, 20px);
+            left: 20px;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        .btn-clear {
+            position: absolute;
+            bottom: env(safe-area-inset-bottom, 20px);
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid white;
+            color: white;
+            border-radius: 8px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="info">
+        <h2 style="margin:0">触摸区域测试</h2>
+        <p id="coords">请触摸屏幕进行测试</p>
+        <p id="count">当前点数: 0</p>
+    </div>
+
+    <button class="btn-clear" onclick="clearCanvas()">清空画布</button>
+    <canvas id="testCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('testCanvas');
+        const ctx = canvas.getContext('2d');
+        const coordsText = document.getElementById('coords');
+        const countText = document.getElementById('count');
+        
+        // 存储当前触控点颜色
+        const colors = ['#FF3B30', '#4CD964', '#007AFF', '#FFCC00', '#5856D6', '#FF9500'];
+        let activeTouches = {};
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // 背景重绘
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        function handleTouch(e) {
+            // 阻止 Safari 的下拉刷新和缩放
+            e.preventDefault();
+            
+            const touches = e.touches;
+            countText.innerText = `当前点数: ${touches.length}`;
+
+            // 遍历所有触控点
+            for (let i = 0; i < touches.length; i++) {
+                const touch = touches[i];
+                const x = touch.clientX;
+                const y = touch.clientY;
+
+                // 绘制轨迹（实线）
+                ctx.beginPath();
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.arc(x, y, 15, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 更新坐标文字
+                if (i === 0) {
+                    coordsText.innerText = `坐标: X:${Math.round(x)} Y:${Math.round(y)}`;
+                }
+            }
+        }
+
+        // 清空功能
+        function clearCanvas() {
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // 绑定事件
+        canvas.addEventListener('touchstart', handleTouch, { passive: false });
+        canvas.addEventListener('touchmove', handleTouch, { passive: false });
+        canvas.addEventListener('touchend', (e) => {
+            countText.innerText = `当前点数: ${e.touches.length}`;
+        }, { passive: false });
+
+    </script>
+</body>
+</html>
