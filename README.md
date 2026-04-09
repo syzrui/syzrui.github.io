@@ -7,3 +7,5 @@ https://syzrui.github.io/SVPWM.html
 https://syzrui.github.io/fluid.html
 
 https://syzrui.github.io/fluidv2.html
+
+https://syzrui.github.io/SVPWM2.html
