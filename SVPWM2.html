@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三相电全变换仿真 - 顺序调整版</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        h1 { color: #1a1a1a; margin-bottom: 10px; }
+        
+        .info-panel { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 20px; margin-bottom: 20px; width: 100%; max-width: 1200px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; font-size: 0.9em; line-height: 1.5; }
+        .info-group h3 { margin-top: 0; color: #007bff; border-bottom: 2px solid #007bff; display: inline-block; margin-bottom: 10px; }
+        
+        /* 布局网格：确保 3 列排列 */
+        .main-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; width: 100%; max-width: 1400px; }
+        
+        .chart-box { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 15px; display: flex; flex-direction: column; }
+        
+        /* 波形图容器：长方形，横向铺满 */
+        .wave-box { height: 320px; } 
+        /* 几何图容器：严格正方形 */
+        .square-box { aspect-ratio: 1 / 1; }
+
+        .chart-box h2 { text-align: center; font-size: 1.05em; margin: 0 0 5px 0; color: #222; }
+        .chart-desc { font-size: 0.8em; color: #666; text-align: center; margin-bottom: 10px; height: 2.5em; overflow: hidden; }
+        .chart-container { flex-grow: 1; position: relative; width: 100%; height: 100%; }
+
+        .controls-panel { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 25px; width: 100%; max-width: 600px; display: flex; flex-direction: column; align-items: center; gap: 15px; }
+        .button-group { display: flex; gap: 15px; }
+        button { padding: 10px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; background-color: #e9ecef; }
+        button.active { background-color: #007bff; color: white; }
+        .slider-group { width: 100%; display: flex; align-items: center; gap: 15px; }
+        input[type=range] { flex-grow: 1; accent-color: #007bff; }
+        .slider-value { width: 60px; font-weight: bold; color: #007bff; font-size: 1.1em; text-align: right; }
+    </style>
+</head>
+<body>
+
+    <h1>三相电坐标变换逻辑排列 (波形 → 几何)</h1>
+
+    <div class="info-panel">
+        <div class="info-group">
+            <h3>1. ABC 原始信号</h3>
+            <div>三相平衡交流电，是所有变换的输入源。</div>
+        </div>
+        <div class="info-group">
+            <h3>2. Alpha-Beta (Clarke)</h3>
+            <div>静止正交坐标系，将三相交流简化为两相交流。</div>
+        </div>
+        <div class="info-group">
+            <h3>3. D-Q (Park)</h3>
+            <div>旋转正交坐标系，将交流量转为直流恒定量。</div>
+        </div>
+    </div>
+
+    <div class="controls-panel">
+        <div class="button-group">
+            <button id="btn-animate" class="active">动画播放</button>
+            <button id="btn-static">手动调节</button>
+        </div>
+        <div class="slider-group" id="slider-group" style="opacity: 0.3; pointer-events: none;">
+            <label>电角度 θ:</label>
+            <input type="range" id="phase-slider" min="0" max="360" value="0">
+            <span class="slider-value" id="phase-value">0°</span>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="chart-box wave-box">
+            <h2>1. 三相交流波形 (ABC)</h2>
+            <div class="chart-desc">原始输入：三个互差 120° 的正弦电压。</div>
+            <div class="chart-container"><canvas id="chart-abc"></canvas></div>
+        </div>
+
+        <div class="chart-box wave-box">
+            <h2>4. Clarke 变换波形 (α-β)</h2>
+            <div class="chart-desc">中间过程：转为互差 90° 的两相交流电。</div>
+            <div class="chart-container"><canvas id="chart-ab-wave"></canvas></div>
+        </div>
+
+        <div class="chart-box wave-box">
+            <h2>6. Park 变换波形 (d-q)</h2>
+            <div class="chart-desc">最终目标：交流电转为平直的直流分量。</div>
+            <div class="chart-container"><canvas id="chart-dq-wave"></canvas></div>
+        </div>
+
+        <div class="chart-box square-box">
+            <h2>2. 空间矢量合成 (Uref)</h2>
+            <div class="chart-desc">三相基轴方向上的矢量合成效果。</div>
+            <div class="chart-container"><canvas id="chart-vec-abc"></canvas></div>
+        </div>
+
+        <div class="chart-box square-box">
+            <h2>3. Alpha-Beta 静止轴投影</h2>
+            <div class="chart-desc">矢量在固定坐标轴上的实时投影长度。</div>
+            <div class="chart-container"><canvas id="chart-rot-ab"></canvas></div>
+        </div>
+
+        <div class="chart-box square-box">
+            <h2>5. D-Q 旋转坐标系</h2>
+            <div class="chart-desc">d-q 轴跟随矢量旋转，矢量在轴上看起来不动。</div>
+            <div class="chart-container"><canvas id="chart-rot-dq"></canvas></div>
+        </div>
+    </div>
+
+    <script>
+        const AMP = 100;
+        const colors = { a:'#FF6384', b:'#36A2EB', c:'#FFCE56', ref:'#4BC0C0', alpha:'#9966FF', beta:'#FF9F40', dq:'#333' };
+
+        function calc(deg) {
+            const r = deg * Math.PI / 180;
+            const a = AMP * Math.cos(r), b = AMP * Math.cos(r - 2.0944), c = AMP * Math.cos(r - 4.1888);
+            const al = (2/3) * (a - 0.5*b - 0.5*c), be = (2/3) * (0.866*b - 0.866*c);
+            const d = al * Math.cos(r) + be * Math.sin(r), q = -al * Math.sin(r) + be * Math.cos(r);
+            return { a, b, c, al, be, d, q, r };
+        }
+
+        const waveOpt = (yLab) => ({
+            responsive: true, maintainAspectRatio: false, animation: false,
+            scales: { x:{min:0, max:360}, y:{min:-120, max:120, title:{display:true, text:yLab}} },
+            plugins: { legend: { position:'top', labels:{ boxWidth:12 } } }
+        });
+
+        const polarOpt = (xLab, yLab) => ({
+            responsive: true, maintainAspectRatio: true, aspectRatio: 1, animation: false,
+            scales: { x:{min:-130, max:130, title:{display:true, text:xLab}}, y:{min:-130, max:130, title:{display:true, text:yLab}} },
+            plugins: { legend: { display: false } }
+        });
+
+        // 实例化 (按 ID 顺序)
+        const ctx1 = new Chart(document.getElementById('chart-abc'), {
+            type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[
+                {label:'Va', data:[], borderColor:colors.a, borderWidth:2, pointRadius:0},
+                {label:'Vb', data:[], borderColor:colors.b, borderWidth:2, pointRadius:0},
+                {label:'Vc', data:[], borderColor:colors.c, borderWidth:2, pointRadius:0},
+                {label:'游标', data:[], borderColor:'#aaa', borderDash:[5,5], pointRadius:0}
+            ]}, options: waveOpt('电压 (V)')
+        });
+
+        const ctx4 = new Chart(document.getElementById('chart-ab-wave'), {
+            type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[
+                {label:'U-Alpha', data:[], borderColor:colors.alpha, borderWidth:2, pointRadius:0},
+                {label:'U-Beta', data:[], borderColor:colors.beta, borderWidth:2, pointRadius:0},
+                {label:'游标', data:[], borderColor:'#aaa', borderDash:[5,5], pointRadius:0}
+            ]}, options: waveOpt('幅值')
+        });
+
+        const ctx6 = new Chart(document.getElementById('chart-dq-wave'), {
+            type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[
+                {label:'Ud (直轴)', data:[], borderColor:colors.a, borderWidth:3, pointRadius:0},
+                {label:'Uq (交轴)', data:[], borderColor:colors.b, borderWidth:3, pointRadius:0},
+                {label:'游标', data:[], borderColor:'#aaa', borderDash:[5,5], pointRadius:0}
+            ]}, options: waveOpt('直流电压')
+        });
+
+        const ctx2 = new Chart(document.getElementById('chart-vec-abc'), {
+            type:'scatter', data:{ datasets:[
+                {label:'A轴', data:[{x:0,y:0},{x:120,y:0}], borderColor:colors.a, borderDash:[2,2], showLine:true, pointRadius:0},
+                {label:'B轴', data:[{x:0,y:0},{x:-60,y:104}], borderColor:colors.b, borderDash:[2,2], showLine:true, pointRadius:0},
+                {label:'C轴', data:[{x:0,y:0},{x:-60,y:-104}], borderColor:colors.c, borderDash:[2,2], showLine:true, pointRadius:0},
+                {label:'Uref', data:[], borderColor:colors.ref, backgroundColor:colors.ref, showLine:true, borderWidth:5, pointRadius:6}
+            ]}, options: polarOpt('Alpha','Beta')
+        });
+
+        const ctx3 = new Chart(document.getElementById('chart-rot-ab'), {
+            type:'scatter', data:{ datasets:[
+                {label:'Alpha轴', data:[{x:-125,y:0},{x:125,y:0}], borderColor:colors.alpha, borderDash:[2,2], showLine:true, pointRadius:0},
+                {label:'Beta轴', data:[{x:0,y:-125},{x:0,y:125}], borderColor:colors.beta, borderDash:[2,2], showLine:true, pointRadius:0},
+                {label:'Uref', data:[], borderColor:colors.ref, showLine:true, borderWidth:3},
+                {label:'α投影', data:[], borderColor:colors.alpha, borderDash:[3,3], showLine:true, pointRadius:0},
+                {label:'β投影', data:[], borderColor:colors.beta, borderDash:[3,3], showLine:true, pointRadius:0}
+            ]}, options: polarOpt('Alpha','Beta')
+        });
+
+        const ctx5 = new Chart(document.getElementById('chart-rot-dq'), {
+            type:'scatter', data:{ datasets:[
+                {label:'d轴', data:[], borderColor:colors.dq, borderDash:[6,2], showLine:true, borderWidth:2, pointRadius:0},
+                {label:'q轴', data:[], borderColor:colors.dq, borderDash:[6,2], showLine:true, borderWidth:2, pointRadius:0},
+                {label:'Uref', data:[], borderColor:colors.ref, showLine:true, borderWidth:5, pointRadius:6},
+                {label:'基准', data:[{x:0,y:0},{x:125,y:0}], borderColor:'#eee', showLine:true, pointRadius:0}
+            ]}, options: polarOpt('d-axis','q-axis')
+        });
+
+        const ds = {abc:[[],[],[]], ab:[[],[]], dq:[[],[]]};
+        for(let i=0; i<=360; i++){
+            const r = calc(i);
+            ds.abc[0].push(r.a); ds.abc[1].push(r.b); ds.abc[2].push(r.c);
+            ds.ab[0].push(r.al); ds.ab[1].push(r.be);
+            ds.dq[0].push(r.d); ds.dq[1].push(r.q);
+        }
+        ctx1.data.datasets[0].data=ds.abc[0]; ctx1.data.datasets[1].data=ds.abc[1]; ctx1.data.datasets[2].data=ds.abc[2];
+        ctx4.data.datasets[0].data=ds.ab[0]; ctx4.data.datasets[1].data=ds.ab[1];
+        ctx6.data.datasets[0].data=ds.dq[0]; ctx6.data.datasets[1].data=ds.dq[1];
+
+        function update(theta) {
+            const r = calc(theta);
+            const line = [{x:theta,y:-120},{x:theta,y:120}];
+            ctx1.data.datasets[3].data=line; ctx4.data.datasets[2].data=line; ctx6.data.datasets[2].data=line;
+            ctx2.data.datasets[3].data=[{x:0,y:0},{x:r.al,y:r.be}];
+            ctx3.data.datasets[2].data=[{x:0,y:0},{x:r.al,y:r.be}];
+            ctx3.data.datasets[3].data=[{x:r.al,y:r.be},{x:r.al,y:0}];
+            ctx3.data.datasets[4].data=[{x:r.al,y:r.be},{x:0,y:r.be}];
+            const L=130;
+            ctx5.data.datasets[0].data=[{x:0,y:0},{x:L*Math.cos(r.r),y:L*Math.sin(r.r)}];
+            ctx5.data.datasets[1].data=[{x:0,y:0},{x:-L*Math.sin(r.r),y:L*Math.cos(r.r)}];
+            ctx5.data.datasets[2].data=[{x:0,y:0},{x:r.al,y:r.be}];
+            [ctx1,ctx2,ctx3,ctx4,ctx5,ctx6].forEach(c=>c.update('none'));
+        }
+
+        let th=0, anim=true;
+        function loop(){ if(anim){ th=(th+1.2)%360; update(th); requestAnimationFrame(loop);}}
+
+        document.getElementById('btn-animate').onclick=()=>{ anim=true; loop(); 
+            document.getElementById('btn-animate').className='active'; document.getElementById('btn-static').className='';
+            document.getElementById('slider-group').style.opacity='0.3'; document.getElementById('slider-group').style.pointerEvents='none';};
+        document.getElementById('btn-static').onclick=()=>{ anim=false; 
+            document.getElementById('btn-animate').className=''; document.getElementById('btn-static').className='active';
+            document.getElementById('slider-group').style.opacity='1'; document.getElementById('slider-group').style.pointerEvents='auto';};
+        document.getElementById('phase-slider').oninput=(e)=>{ th=parseInt(e.target.value); document.getElementById('phase-value').innerText=th+'°'; update(th);};
+        
+        loop();
+    </script>
+</body>
+</html>
