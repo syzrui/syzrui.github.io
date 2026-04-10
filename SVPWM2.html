@@ -3,30 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>三相电全变换仿真 - 精准修正版</title>
+    <title>三相电全变换仿真 - 分量区分优化版</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        h1 { color: #1a1a1a; margin-bottom: 10px; }
-        .main-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; width: 100%; max-width: 1400px; }
-        .chart-box { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 15px; display: flex; flex-direction: column; }
-        .wave-box { height: 320px; } 
-        .square-box { aspect-ratio: 1 / 1; }
-        .chart-box h2 { text-align: center; font-size: 1.05em; margin: 0 0 5px 0; color: #222; }
-        .chart-desc { font-size: 0.8em; color: #666; text-align: center; margin-bottom: 10px; height: 2.5em; overflow: hidden; }
-        .chart-container { flex-grow: 1; position: relative; width: 100%; height: 100%; }
+        body { font-family: 'PingFang SC', sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        h1 { color: #1a1a1a; margin-bottom: 15px; font-size: 1.6em; }
+        
+        .main-container { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); 
+            gap: 20px; 
+            width: 100%; 
+            max-width: 1200px; 
+        }
+
+        .chart-box { 
+            background: white; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08); 
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+        }
+
+        .wave-box { height: 300px; width: 100%; }
+        
+        .vector-box { 
+            width: 100%;
+            max-width: 380px; 
+            aspect-ratio: 1 / 1; 
+        }
+
+        .chart-box h2 { text-align: center; font-size: 1.1em; margin: 0 0 10px 0; color: #333; width: 100%; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        .chart-desc { font-size: 0.85em; color: #666; text-align: center; margin-bottom: 10px; height: 2.5em; line-height: 1.4; width: 100%; }
+        
+        .chart-container { 
+            flex-grow: 1; 
+            position: relative; 
+            width: 100%; 
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas { width: 100% !important; height: 100% !important; }
+
         .controls-panel { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 25px; width: 100%; max-width: 600px; display: flex; flex-direction: column; align-items: center; gap: 15px; }
         .button-group { display: flex; gap: 15px; }
         button { padding: 10px 25px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; background-color: #e9ecef; }
         button.active { background-color: #007bff; color: white; }
         .slider-group { width: 100%; display: flex; align-items: center; gap: 15px; }
-        input[type=range] { flex-grow: 1; accent-color: #007bff; }
-        .slider-value { width: 60px; font-weight: bold; color: #007bff; font-size: 1.1em; text-align: right; }
+        input[type=range] { flex-grow: 1; accent-color: #007bff; cursor: pointer; }
+        .slider-value { width: 60px; font-weight: bold; color: #007bff; text-align: right; }
     </style>
 </head>
 <body>
 
-    <h1>三相电坐标变换 (逻辑顺序 & 矢量动态修正)</h1>
+    <h1>三相电坐标变换 (分量区分优化版)</h1>
 
     <div class="controls-panel">
         <div class="button-group">
@@ -34,7 +69,7 @@
             <button id="btn-static">手动调节</button>
         </div>
         <div class="slider-group" id="slider-group" style="opacity: 0.3; pointer-events: none;">
-            <label>电角度 θ:</label>
+            <label>角度 θ:</label>
             <input type="range" id="phase-slider" min="0" max="360" value="0">
             <span class="slider-value" id="phase-value">0°</span>
         </div>
@@ -42,120 +77,143 @@
 
     <div class="main-container">
         <div class="chart-box wave-box">
-            <h2>1. 三相交流波形 (ABC)</h2>
-            <div class="chart-desc">原始三相平衡交流输入。</div>
+            <h2>1. 三相波形 (ABC)</h2>
             <div class="chart-container"><canvas id="chart-abc"></canvas></div>
         </div>
         <div class="chart-box wave-box">
-            <h2>2. 两相交流波形 (Alpha-Beta)</h2>
-            <div class="chart-desc">Clarke变换：互差90°的正交交流电。</div>
+            <h2>2. 两相波形 (α-β)</h2>
             <div class="chart-container"><canvas id="chart-ab-wave"></canvas></div>
         </div>
         <div class="chart-box wave-box">
-            <h2>3. 两相直流波形 (d-q)</h2>
-            <div class="chart-desc">Park变换：最终得到的直流恒定量。</div>
+            <h2>3. 直流波形 (d-q)</h2>
             <div class="chart-container"><canvas id="chart-dq-wave"></canvas></div>
         </div>
 
-        <div class="chart-box square-box">
-            <h2>4. 空间矢量合成 (ABC动态)</h2>
-            <div class="chart-desc">各相矢量长度随波形实时伸缩。</div>
+        <div class="chart-box vector-box">
+            <h2>4. 空间矢量合成 (ABC)</h2>
+            <div class="chart-desc">合成矢量 $U_{ref}$ (绿) = A+B+C</div>
             <div class="chart-container"><canvas id="chart-vec-abc"></canvas></div>
         </div>
-        <div class="chart-box square-box">
-            <h2>5. 静止轴投影 (Alpha-Beta)</h2>
-            <div class="chart-desc">Uref 在 α-β 轴上的动态投影伸缩。</div>
+        <div class="chart-box vector-box">
+            <h2>5. 静止轴投影 (α-β)</h2>
+            <div class="chart-desc">$\alpha$ 轴(紫) 与 $\beta$ 轴(橙) 投影分量</div>
             <div class="chart-container"><canvas id="chart-rot-ab"></canvas></div>
         </div>
-        <div class="chart-box square-box">
-            <h2>6. d-q 固定轴旋转投影</h2>
-            <div class="chart-desc">黑轴固定，Vd(红)和Vq(蓝)矢量随Uref同步旋转。</div>
+        <div class="chart-box vector-box">
+            <h2>6. d-q 旋转矢量分解</h2>
+            <div class="chart-desc">调整角度后 $V_d$(红) > $V_q$(蓝)，更容易区分</div>
             <div class="chart-container"><canvas id="chart-rot-dq"></canvas></div>
         </div>
     </div>
 
     <script>
         const AMP = 100;
-        const colors = { a:'#FF6384', b:'#36A2EB', c:'#FFCE56', ref:'#4BC0C0', alpha:'#9966FF', beta:'#FF9F40', dq:'#333' };
+        const colors = { a:'#FF6384', b:'#36A2EB', c:'#FFCE56', ref:'#2ecc71', alpha:'#9966FF', beta:'#FF9F40' };
 
         function calc(deg) {
             const r = deg * Math.PI / 180;
-            const a = AMP * Math.cos(r), b = AMP * Math.cos(r - 2.0944), c = AMP * Math.cos(r - 4.1888);
-            const al = (2/3) * (a - 0.5*b - 0.5*c), be = (2/3) * (0.866*b - 0.866*c);
-            const d = al * Math.cos(r) + be * Math.sin(r), q = -al * Math.sin(r) + be * Math.cos(r);
-            return { a, b, c, al, be, d, q, r };
+            // 1. ABC 三相
+            const a = AMP * Math.cos(r);
+            const b = AMP * Math.cos(r - 2.0944);
+            const c = AMP * Math.cos(r - 4.1888);
+            
+            // 2. Clarke
+            const al = (2/3) * (a - 0.5*b - 0.5*c);
+            const be = (2/3) * (0.866*b - 0.866*c);
+            
+            // 3. Park - 将偏置改为 30度 (PI/6)，使 d, q 幅值不等
+            // Vd = AMP * cos(30°) ≈ 86.6
+            // Vq = AMP * sin(30°) ≈ 50.0
+            const offset = Math.PI / 6; 
+            const tp = r - offset;
+            const d = al * Math.cos(tp) + be * Math.sin(tp);
+            const q = -al * Math.sin(tp) + be * Math.cos(tp);
+            
+            return { a, b, c, al, be, d, q, r, tp };
         }
 
-        const waveOpt = (yLab) => ({ responsive:true, maintainAspectRatio:false, animation:false, scales:{x:{min:0,max:360},y:{min:-120,max:120,title:{display:true,text:yLab}}}, plugins:{legend:{position:'top',labels:{boxWidth:12}}}});
-        const polarOpt = (xLab, yLab) => ({ responsive:true, maintainAspectRatio:true, aspectRatio:1, animation:false, scales:{x:{min:-130,max:130,title:{display:true,text:xLab}},y:{min:-130,max:130,title:{display:true,text:yLab}}}, plugins:{legend:{display:false}}});
+        const waveOpt = () => ({
+            responsive: true, maintainAspectRatio: false, animation: false,
+            scales: { x: { type: 'linear', min: 0, max: 360 }, y: { min: -130, max: 130 } },
+            plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10 } } }
+        });
 
-        // 初始化所有图表
-        const ctx1 = new Chart(document.getElementById('chart-abc'), { type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[{label:'Va',data:[],borderColor:colors.a,pointRadius:0},{label:'Vb',data:[],borderColor:colors.b,pointRadius:0},{label:'Vc',data:[],borderColor:colors.c,pointRadius:0},{label:'游标',data:[],borderColor:'#aaa',borderDash:[5,5],pointRadius:0}]}, options: waveOpt('V') });
-        const ctx2 = new Chart(document.getElementById('chart-ab-wave'), { type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[{label:'Uα',data:[],borderColor:colors.alpha,pointRadius:0},{label:'Uβ',data:[],borderColor:colors.beta,pointRadius:0},{label:'游标',data:[],borderColor:'#aaa',borderDash:[5,5],pointRadius:0}]}, options: waveOpt('V') });
-        const ctx3 = new Chart(document.getElementById('chart-dq-wave'), { type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[{label:'Ud',data:[],borderColor:colors.a,borderWidth:3,pointRadius:0},{label:'Uq',data:[],borderColor:colors.b,borderWidth:3,pointRadius:0},{label:'游标',data:[],borderColor:'#aaa',borderDash:[5,5],pointRadius:0}]}, options: waveOpt('V') });
+        const vectorOpt = () => ({
+            responsive: true, maintainAspectRatio: true, aspectRatio: 1, animation: false,
+            scales: {
+                x: { type: 'linear', min: -130, max: 130, grid: { color: '#eee' }, ticks: { display: false } },
+                y: { type: 'linear', min: -130, max: 130, grid: { color: '#eee' }, ticks: { display: false } }
+            },
+            plugins: { legend: { display: false } }
+        });
 
-        const ctx4 = new Chart(document.getElementById('chart-vec-abc'), { type:'scatter', data:{ datasets:[{label:'Va',data:[],borderColor:colors.a,showLine:true,borderWidth:3,pointRadius:0},{label:'Vb',data:[],borderColor:colors.b,showLine:true,borderWidth:3,pointRadius:0},{label:'Vc',data:[],borderColor:colors.c,showLine:true,borderWidth:3,pointRadius:0},{label:'Uref',data:[],borderColor:colors.ref,showLine:true,borderWidth:5,pointRadius:6}]}, options: polarOpt('α轴','β轴') });
-        const ctx5 = new Chart(document.getElementById('chart-rot-ab'), { type:'scatter', data:{ datasets:[{label:'α轴',data:[{x:-125,y:0},{x:125,y:0}],borderColor:colors.alpha,borderDash:[2,2],showLine:true,pointRadius:0},{label:'β轴',data:[{x:0,y:-125},{x:0,y:125}],borderColor:colors.beta,borderDash:[2,2],showLine:true,pointRadius:0},{label:'Uref',data:[],borderColor:colors.ref,showLine:true,borderWidth:4},{label:'α投影',data:[],borderColor:colors.alpha,showLine:true,borderWidth:4},{label:'β投影',data:[],borderColor:colors.beta,showLine:true,borderWidth:4}]}, options: polarOpt('α','β') });
-        
-        // 图 6：固定黑轴，旋转矢量
+        const ctx1 = new Chart(document.getElementById('chart-abc'), { type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[{label:'Va',data:[],borderColor:colors.a,pointRadius:0},{label:'Vb',data:[],borderColor:colors.b,pointRadius:0},{label:'Vc',data:[],borderColor:colors.c,pointRadius:0},{label:'游标',data:[],borderColor:'#999',borderDash:[5,5],pointRadius:0}]}, options: waveOpt() });
+        const ctx2 = new Chart(document.getElementById('chart-ab-wave'), { type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[{label:'Uα',data:[],borderColor:colors.alpha,pointRadius:0},{label:'Uβ',data:[],borderColor:colors.beta,pointRadius:0},{label:'游标',data:[],borderColor:'#999',borderDash:[5,5],pointRadius:0}]}, options: waveOpt() });
+        const ctx3 = new Chart(document.getElementById('chart-dq-wave'), { type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[{label:'Ud (d轴直流)',data:[],borderColor:colors.a,borderWidth:2,pointRadius:0},{label:'Uq (q轴直流)',data:[],borderColor:colors.b,borderWidth:2,pointRadius:0},{label:'游标',data:[],borderColor:'#999',borderDash:[5,5],pointRadius:0}]}, options: waveOpt() });
+
+        const ctx4 = new Chart(document.getElementById('chart-vec-abc'), { type:'scatter', data:{ datasets:[
+            {label:'Va', data:[], borderColor:colors.a, showLine:true, borderWidth:3},
+            {label:'Vb', data:[], borderColor:colors.b, showLine:true, borderWidth:3},
+            {label:'Vc', data:[], borderColor:colors.c, showLine:true, borderWidth:3},
+            {label:'Uref', data:[], borderColor:colors.ref, showLine:true, borderWidth:5, pointRadius:4}
+        ]}, options: vectorOpt() });
+
+        const ctx5 = new Chart(document.getElementById('chart-rot-ab'), { type:'scatter', data:{ datasets:[
+            {label:'轴', data:[{x:-130,y:0},{x:130,y:0}], borderColor:'#f0f0f0', showLine:true, pointRadius:0},
+            {label:'轴', data:[{x:0,y:-130},{x:0,y:130}], borderColor:'#f0f0f0', showLine:true, pointRadius:0},
+            {label:'Uref', data:[], borderColor:colors.ref, showLine:true, borderWidth:4},
+            {label:'α', data:[], borderColor:colors.alpha, showLine:true, borderWidth:3},
+            {label:'β', data:[], borderColor:colors.beta, showLine:true, borderWidth:3}
+        ]}, options: vectorOpt() });
+
         const ctx6 = new Chart(document.getElementById('chart-rot-dq'), { type:'scatter', data:{ datasets:[
-            {label:'d轴线(固定)', data:[{x:-125,y:0},{x:125,y:0}], borderColor:colors.dq, borderDash:[2,2], showLine:true, pointRadius:0},
-            {label:'q轴线(固定)', data:[{x:0,y:-125},{x:0,y:125}], borderColor:colors.dq, borderDash:[2,2], showLine:true, pointRadius:0},
-            {label:'Uref', data:[], borderColor:colors.ref, showLine:true, borderWidth:5, pointRadius:6},
-            {label:'Vd矢量', data:[], borderColor:colors.a, showLine:true, borderWidth:4, pointRadius:0},
-            {label:'Vq矢量', data:[], borderColor:colors.b, showLine:true, borderWidth:4, pointRadius:0}
-        ]}, options: polarOpt('d轴','q轴') });
+            {label:'Uref', data:[], borderColor:colors.ref, showLine:true, borderWidth:4},
+            {label:'Vd', data:[], borderColor:colors.a, showLine:true, borderWidth:3},
+            {label:'Vq', data:[], borderColor:colors.b, showLine:true, borderWidth:3}
+        ]}, options: vectorOpt() });
 
-        // 背景数据
-        const ds = {abc:[[],[],[]], ab:[[],[]], dq:[[],[]]};
-        for(let i=0; i<=360; i++){
-            const r = calc(i);
-            ds.abc[0].push(r.a); ds.abc[1].push(r.b); ds.abc[2].push(r.c);
-            ds.ab[0].push(r.al); ds.ab[1].push(r.be);
-            ds.dq[0].push(r.d); ds.dq[1].push(r.q);
+        function fillWave() {
+            const dabc = [[],[],[]], dab = [[],[]], ddq = [[],[]];
+            for(let i=0; i<=360; i++){
+                const r = calc(i);
+                dabc[0].push({x:i,y:r.a}); dabc[1].push({x:i,y:r.b}); dabc[2].push({x:i,y:r.c});
+                dab[0].push({x:i,y:r.al}); dab[1].push({x:i,y:r.be});
+                ddq[0].push({x:i,y:r.d}); ddq[1].push({x:i,y:r.q});
+            }
+            ctx1.data.datasets[0].data=dabc[0]; ctx1.data.datasets[1].data=dabc[1]; ctx1.data.datasets[2].data=dabc[2];
+            ctx2.data.datasets[0].data=dab[0]; ctx2.data.datasets[1].data=dab[1];
+            ctx3.data.datasets[0].data=ddq[0]; ctx3.data.datasets[1].data=ddq[1];
         }
-        ctx1.data.datasets[0].data=ds.abc[0]; ctx1.data.datasets[1].data=ds.abc[1]; ctx1.data.datasets[2].data=ds.abc[2];
-        ctx2.data.datasets[0].data=ds.ab[0]; ctx2.data.datasets[1].data=ds.ab[1];
-        ctx3.data.datasets[0].data=ds.dq[0]; ctx3.data.datasets[1].data=ds.dq[1];
+        fillWave();
 
-        function updateCharts(theta) {
-            const r = calc(theta);
-            const line = [{x:theta,y:-120},{x:theta,y:120}];
+        function update(deg) {
+            const r = calc(deg);
+            const line = [{x:deg,y:-130},{x:deg,y:130}];
             ctx1.data.datasets[3].data=line; ctx2.data.datasets[2].data=line; ctx3.data.datasets[2].data=line;
 
-            // 图 4
             ctx4.data.datasets[0].data=[{x:0,y:0},{x:r.a,y:0}];
             ctx4.data.datasets[1].data=[{x:0,y:0},{x:r.b*Math.cos(2.0944),y:r.b*Math.sin(2.0944)}];
             ctx4.data.datasets[2].data=[{x:0,y:0},{x:r.c*Math.cos(4.1888),y:r.c*Math.sin(4.1888)}];
             ctx4.data.datasets[3].data=[{x:0,y:0},{x:r.al,y:r.be}];
 
-            // 图 5
             ctx5.data.datasets[2].data=[{x:0,y:0},{x:r.al,y:r.be}];
             ctx5.data.datasets[3].data=[{x:0,y:0},{x:r.al,y:0}];
             ctx5.data.datasets[4].data=[{x:0,y:0},{x:0,y:r.be}];
 
-            // 图 6：固定黑轴，旋转 Vd Vq 矢量线段
-            // 注意：Vd Vq 是 Uref 在旋转坐标系下的投影长度，这里要将它们表现为旋转的矢量
-            const cosT = Math.cos(r.r), sinT = Math.sin(r.r);
-            ctx6.data.datasets[2].data=[{x:0,y:0},{x:r.al,y:r.be}]; // Uref 正常旋转
-            ctx6.data.datasets[3].data=[{x:0,y:0},{x:r.d*cosT,y:r.d*sinT}]; // Vd 矢量
-            ctx6.data.datasets[4].data=[{x:0,y:0},{x:-r.q*sinT,y:r.q*cosT}]; // Vq 矢量
+            const cp=Math.cos(r.tp), sp=Math.sin(r.tp);
+            ctx6.data.datasets[0].data=[{x:0,y:0},{x:r.al,y:r.be}];
+            ctx6.data.datasets[1].data=[{x:0,y:0},{x:r.d*cp, y:r.d*sp}];
+            ctx6.data.datasets[2].data=[{x:0,y:0},{x:-r.q*sp, y:r.q*cp}];
 
             [ctx1,ctx2,ctx3,ctx4,ctx5,ctx6].forEach(c=>c.update('none'));
         }
 
-        let currentTh=0, isAnimate=true;
-        function animateLoop(){ if(isAnimate){ currentTh=(currentTh+1.2)%360; updateCharts(currentTh); requestAnimationFrame(animateLoop);}}
-        
-        document.getElementById('btn-animate').onclick=()=>{ isAnimate=true; animateLoop(); 
-            document.getElementById('btn-animate').className='active'; document.getElementById('btn-static').className='';
-            document.getElementById('slider-group').style.opacity='0.3'; document.getElementById('slider-group').style.pointerEvents='none';};
-        document.getElementById('btn-static').onclick=()=>{ isAnimate=false; 
-            document.getElementById('btn-animate').className=''; document.getElementById('btn-static').className='active';
-            document.getElementById('slider-group').style.opacity='1'; document.getElementById('slider-group').style.pointerEvents='auto';};
-        document.getElementById('phase-slider').oninput=(e)=>{ currentTh=parseInt(e.target.value); document.getElementById('phase-value').innerText=currentTh+'°'; updateCharts(currentTh);};
-        
-        animateLoop();
+        let th=0, ani=true;
+        function loop(){ if(ani){ th=(th+1.5)%360; update(th); requestAnimationFrame(loop); } }
+        document.getElementById('btn-animate').onclick=()=>{ ani=true; loop(); document.getElementById('btn-animate').className='active'; document.getElementById('btn-static').className=''; document.getElementById('slider-group').style.opacity='0.3'; document.getElementById('slider-group').style.pointerEvents='none'; };
+        document.getElementById('btn-static').onclick=()=>{ ani=false; document.getElementById('btn-animate').className=''; document.getElementById('btn-static').className='active'; document.getElementById('slider-group').style.opacity='1'; document.getElementById('slider-group').style.pointerEvents='auto'; };
+        document.getElementById('phase-slider').oninput=(e)=>{ th=parseInt(e.target.value); document.getElementById('phase-value').innerText=th+'°'; update(th); };
+        loop();
     </script>
 </body>
 </html>
