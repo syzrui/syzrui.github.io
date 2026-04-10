@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>三相电全变换 - 投影动态反馈版</title>
+    <title>三相电全变换 - DQ轴固定版</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
@@ -11,7 +11,8 @@
         
         .info-panel { background: #fff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 15px; margin-bottom: 20px; width: 100%; max-width: 1200px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; font-size: 0.85em; }
         .info-group h3 { margin-top: 0; color: #007bff; border-bottom: 2px solid #007bff; display: inline-block; margin-bottom: 8px; }
-        
+        .info-group b { color: #333; }
+
         .main-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; width: 100%; max-width: 1400px; }
         .chart-box { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 15px; display: flex; flex-direction: column; }
         .wave-box { height: 300px; } 
@@ -32,16 +33,20 @@
 </head>
 <body>
 
-    <h1>三相电坐标变换 (动态投影全解析)</h1>
+    <h1>三相电坐标变换 (图6：DQ轴固定展示)</h1>
 
     <div class="info-panel">
         <div class="info-group">
-            <h3>投影动态：Alpha-Beta</h3>
-            <div>紫色(α)和橙色(β)分量矢量在轴上**往复伸缩**。它们合成旋转的 Uref。</div>
+            <h3>关键修改：图6</h3>
+            <div>**d轴**(励磁)固定为水平，**q轴**(转矩)固定为垂直。它们不再旋转。</div>
         </div>
         <div class="info-group">
-            <h3>投影动态：D-Q</h3>
-            <div>红色(d)和蓝色(q)分量在**旋转轴**上长度**恒定**。这证明了交流已转为直流。</div>
+            <h3>视觉现象</h3>
+            <div>在图6中，Uref看起来是**静止**的。这直观证明了Park变换消除了旋转波动。</div>
+        </div>
+        <div class="info-group">
+            <h3>投影动态</h3>
+            <div>红色(Ud)和蓝色(Uq)分量矢量长度**恒定**。对应图3中的直线。</div>
         </div>
     </div>
 
@@ -65,48 +70,49 @@
         </div>
         <div class="chart-box wave-box">
             <h2>2. 两相波形 (α-β)</h2>
-            <div class="chart-desc">Clarke 变换：正交交流信号</div>
+            <div class="chart-desc">Clarke 变换：静止正交交流信号</div>
             <div class="chart-container"><canvas id="chart-ab-wave"></canvas></div>
         </div>
         <div class="chart-box wave-box">
             <h2>3. 直流波形 (d-q)</h2>
-            <div class="chart-desc">Park 变换：恒定直流控制量</div>
+            <div class="chart-desc">Park 变换：旋转正交直流信号</div>
             <div class="chart-container"><canvas id="chart-dq-wave"></canvas></div>
         </div>
 
         <div class="chart-box square-box">
             <h2>4. 三相矢量动态 (ABC)</h2>
-            <div class="chart-desc">各相分量在各自轴上同步伸缩合成 Uref</div>
+            <div class="chart-desc">各相分量在各自固定轴上同步伸缩合成 Uref</div>
             <div class="chart-container"><canvas id="chart-vec-abc"></canvas></div>
         </div>
 
         <div class="chart-box square-box">
             <h2>5. α-β 动态投影</h2>
-            <div class="chart-desc">紫色线(α)和橙色线(β)实时展现投影长度</div>
+            <div class="chart-desc">Uref在静止坐标轴上的投影，呈正弦规律变化</div>
             <div class="chart-container"><canvas id="chart-rot-ab"></canvas></div>
         </div>
 
         <div class="chart-box square-box">
-            <h2>6. d-q 动态投影 (旋转系)</h2>
-            <div class="chart-desc">Ud(红)和Uq(蓝)在旋转轴上长度固定不动</div>
+            <h2>6. d-q 固定轴投影 (新)</h2>
+            <div class="chart-desc">d轴(红)平，q轴(蓝)竖。Uref在此系下静止，投影长度恒定</div>
             <div class="chart-container"><canvas id="chart-rot-dq"></canvas></div>
         </div>
     </div>
 
     <script>
         const AMP = 100;
-        const colors = { a:'#FF6384', b:'#36A2EB', c:'#FFCE56', ref:'#4BC0C0', alpha:'#9966FF', beta:'#FF9F40', dq:'#333' };
+        const colors = { a:'#FF6384', b:'#36A2EB', c:'#FFCE56', ref:'#4BC0C0', alpha:'#9966FF', beta:'#FF9F40', dq:'#ccc' };
 
-        function calc(deg) {
+        function calcAll(deg) {
             const r = deg * Math.PI / 180;
             const a = AMP * Math.cos(r), b = AMP * Math.cos(r - 2.0944), c = AMP * Math.cos(r - 4.1888);
             const al = (2/3) * (a - 0.5*b - 0.5*c), be = (2/3) * (0.866*b - 0.866*c);
+            // Park 变换：角度 theta 同步，得到恒定 Ud, Uq
             const d = al * Math.cos(r) + be * Math.sin(r), q = -al * Math.sin(r) + be * Math.cos(r);
             return { a, b, c, al, be, d, q, r };
         }
 
-        const waveOpt = (y) => ({ responsive:true, maintainAspectRatio:false, animation:false, scales:{x:{min:0,max:360},y:{min:-120,max:120,title:{display:true,text:y}}}, plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:10}}}}});
-        const polarOpt = (x, y) => ({ responsive:true, maintainAspectRatio:true, aspectRatio:1, animation:false, scales:{x:{min:-130,max:130,title:{display:true,text:x}},y:{min:-130,max:130,title:{display:true,text:y}}}, plugins:{legend:{display:false}}});
+        const waveOpt = (yLab) => ({ responsive:true, maintainAspectRatio:false, animation:false, scales:{x:{min:0,max:360},y:{min:-120,max:120,title:{display:true,text:yLab}}}, plugins:{legend:{position:'top',labels:{boxWidth:10,font:{size:10}}}}});
+        const polarOpt = (xLab, yLab) => ({ responsive:true, maintainAspectRatio:true, aspectRatio:1, animation:false, scales:{x:{min:-130,max:130,title:{display:true,text:xLab}},y:{min:-130,max:130,title:{display:true,text:yLab}}}, plugins:{legend:{display:false}}});
 
         // 图表初始化
         const ctx1 = new Chart(document.getElementById('chart-abc'), { type:'line', data:{ labels:Array.from({length:361},(_,i)=>i), datasets:[{label:'Va',data:[],borderColor:colors.a,pointRadius:0},{label:'Vb',data:[],borderColor:colors.b,pointRadius:0},{label:'Vc',data:[],borderColor:colors.c,pointRadius:0},{label:'游标',data:[],borderColor:'#aaa',borderDash:[5,5],pointRadius:0}]}, options: waveOpt('V') });
@@ -121,63 +127,64 @@
         ]}, options: polarOpt('α轴','β轴') });
 
         const ctx5 = new Chart(document.getElementById('chart-rot-ab'), { type:'scatter', data:{ datasets:[
-            {label:'轴', data:[{x:-125,y:0},{x:125,y:0},{x:0,y:-125},{x:0,y:125}], borderColor:'#eee', showLine:false, pointRadius:0},
+            {label:'轴参考', data:[{x:-125,y:0},{x:125,y:0},{x:0,y:-125},{x:0,y:125}], borderColor:'#eee', showLine:false, pointRadius:0},
             {label:'Uref', data:[], borderColor:colors.ref, showLine:true, borderWidth:4, pointRadius:6},
-            {label:'α投影矢量', data:[], borderColor:colors.alpha, showLine:true, borderWidth:4, pointRadius:0},
-            {label:'β投影矢量', data:[], borderColor:colors.beta, showLine:true, borderWidth:4, pointRadius:0},
+            {label:'α投影', data:[], borderColor:colors.alpha, showLine:true, borderWidth:4, pointRadius:0},
+            {label:'β投影', data:[], borderColor:colors.beta, showLine:true, borderWidth:4, pointRadius:0},
             {label:'辅助线', data:[], borderColor:'#ccc', borderDash:[3,3], showLine:true, pointRadius:0}
         ]}, options: polarOpt('α轴','β轴') });
 
+        // 图6修改：固定轴配置
         const ctx6 = new Chart(document.getElementById('chart-rot-dq'), { type:'scatter', data:{ datasets:[
-            {label:'d轴线', data:[], borderColor:colors.dq, borderDash:[5,2], showLine:true, pointRadius:0},
-            {label:'q轴线', data:[], borderColor:colors.dq, borderDash:[5,2], showLine:true, pointRadius:0},
-            {label:'Uref', data:[], borderColor:colors.ref, showLine:true, borderWidth:5, pointRadius:6},
-            {label:'Ud投影', data:[], borderColor:colors.a, showLine:true, borderWidth:4, pointRadius:0},
-            {label:'Uq投影', data:[], borderColor:colors.b, showLine:true, borderWidth:4, pointRadius:0},
+            // 数据集 0 和 1 变为固定的灰色参考轴
+            {label:'d轴线(固定)', data:[{x:-125,y:0},{x:125,y:0}], borderColor:colors.dq, borderDash:[2,2], showLine:true, pointRadius:0},
+            {label:'q轴线(固定)', data:[{x:0,y:-125},{x:0,y:125}], borderColor:colors.dq, borderDash:[2,2], showLine:true, pointRadius:0},
+            // 数据集 2：Uref (直接使用 Ud, Uq 坐标，看起来是静止的)
+            {label:'Uref(系下静止)', data:[], borderColor:colors.ref, showLine:true, borderWidth:5, pointRadius:6},
+            // 数据集 3 和 4：Ud 和 Uq 分量矢量
+            {label:'Ud分量(恒定)', data:[], borderColor:colors.a, showLine:true, borderWidth:4, pointRadius:0},
+            {label:'Uq分量(恒定)', data:[], borderColor:colors.b, showLine:true, borderWidth:4, pointRadius:0},
+            // 数据集 5：辅助虚线
             {label:'辅助线', data:[], borderColor:'#ccc', borderDash:[3,3], showLine:true, pointRadius:0}
-        ]}, options: polarOpt('d-旋转轴','q-旋转轴') });
+        ]}, options: polarOpt('d-励磁轴(恒定)','q-转矩轴(恒定)') });
 
-        // 背景数据
-        const ds = {abc:[[],[],[]], ab:[[],[]], dq:[[],[]]};
+        // 预计算数据
+        const dataSet = {abc:[[],[],[]], ab:[[],[]], dq:[[],[]]};
         for(let i=0; i<=360; i++){
-            const r = calc(i);
-            ds.abc[0].push(r.a); ds.abc[1].push(r.b); ds.abc[2].push(r.c);
-            ds.ab[0].push(r.al); ds.ab[1].push(r.be);
-            ds.dq[0].push(r.d); ds.dq[1].push(r.q);
+            const r = calcAll(i);
+            dataSet.abc[0].push(r.a); dataSet.abc[1].push(r.b); dataSet.abc[2].push(r.c);
+            dataSet.ab[0].push(r.al); dataSet.ab[1].push(r.be);
+            dataSet.dq[0].push(r.d); dataSet.dq[1].push(r.q);
         }
-        ctx1.data.datasets[0].data=ds.abc[0]; ctx1.data.datasets[1].data=ds.abc[1]; ctx1.data.datasets[2].data=ds.abc[2];
-        ctx2.data.datasets[0].data=ds.ab[0]; ctx2.data.datasets[1].data=ds.ab[1];
-        ctx3.data.datasets[0].data=ds.dq[0]; ctx3.data.datasets[1].data=ds.dq[1];
+        ctx1.data.datasets[0].data=dataSet.abc[0]; ctx1.data.datasets[1].data=dataSet.abc[1]; ctx1.data.datasets[2].data=dataSet.abc[2];
+        ctx2.data.datasets[0].data=dataSet.ab[0]; ctx2.data.datasets[1].data=dataSet.ab[1];
+        ctx3.data.datasets[0].data=dataSet.dq[0]; ctx3.data.datasets[1].data=dataSet.dq[1];
 
         function update(theta) {
-            const r = calc(theta);
+            const r = calcAll(theta);
             const cursor = [{x:theta,y:-120},{x:theta,y:120}];
             ctx1.data.datasets[3].data=cursor; ctx2.data.datasets[2].data=cursor; ctx3.data.datasets[2].data=cursor;
 
-            // 图4：三相矢量伸缩
+            // 图4：三相矢量
             ctx4.data.datasets[0].data=[{x:0,y:0},{x:r.a,y:0}];
             ctx4.data.datasets[1].data=[{x:0,y:0},{x:r.b*Math.cos(2.0944),y:r.b*Math.sin(2.0944)}];
             ctx4.data.datasets[2].data=[{x:0,y:0},{x:r.c*Math.cos(4.1888),y:r.c*Math.sin(4.1888)}];
             ctx4.data.datasets[3].data=[{x:0,y:0},{x:r.al,y:r.be}];
 
-            // 图5：Alpha-Beta 动态投影
-            ctx5.data.datasets[1].data=[{x:0,y:0},{x:r.al,y:r.be}]; // Uref
-            ctx5.data.datasets[2].data=[{x:0,y:0},{x:r.al,y:0}];     // Alpha分量
-            ctx5.data.datasets[3].data=[{x:0,y:0},{x:0,y:r.be}];     // Beta分量
-            ctx5.data.datasets[4].data=[{x:r.al,y:0},{x:r.al,y:r.be},{x:0,y:r.be}]; // 辅助虚线
+            // 图5：AB投影
+            ctx5.data.datasets[1].data=[{x:0,y:0},{x:r.al,y:r.be}];
+            ctx5.data.datasets[2].data=[{x:0,y:0},{x:r.al,y:0}];
+            ctx5.data.datasets[3].data=[{x:0,y:0},{x:0,y:r.be}];
+            ctx5.data.datasets[4].data=[{x:r.al,y:0},{x:r.al,y:r.be},{x:0,y:r.be}];
 
-            // 图6：DQ 动态投影
-            const cosT = Math.cos(r.r), sinT = Math.sin(r.r), L=130;
-            ctx6.data.datasets[0].data=[{x:-L*cosT,y:-L*sinT},{x:L*cosT,y:L*sinT}]; // d轴
-            ctx6.data.datasets[1].data=[{x:L*sinT,y:-L*cosT},{x:-L*sinT,y:L*cosT}]; // q轴
-            ctx6.data.datasets[2].data=[{x:0,y:0},{x:r.al,y:r.be}];
-            
-            // 计算分量矢量端点
-            const dpt = {x: r.d*cosT, y: r.d*sinT};
-            const qpt = {x: -r.q*sinT, y: r.q*cosT};
-            ctx6.data.datasets[3].data=[{x:0,y:0}, dpt]; // Ud分量
-            ctx6.data.datasets[4].data=[{x:0,y:0}, qpt]; // Uq分量
-            ctx6.data.datasets[5].data=[dpt, {x:r.al,y:r.be}, qpt]; // 辅助虚线
+            // 图6修改：DQ固定轴更新
+            // Uref 坐标直接使用 Park 变换得到的 (Ud, Uq)。由于平衡系下 Ud, Uq 是常数，矢量看起来静止。
+            ctx6.data.datasets[2].data=[{x:0,y:0},{x:r.d,y:r.q}]; 
+            // 分量矢量直接沿固定的水平和垂直轴绘制
+            ctx6.data.datasets[3].data=[{x:0,y:0},{x:r.d,y:0}]; // Ud分量沿水平轴
+            ctx6.data.datasets[4].data=[{x:0,y:0},{x:0,y:r.q}]; // Uq分量沿垂直轴
+            // 辅助虚线
+            ctx6.data.datasets[5].data=[{x:r.d,y:0},{x:r.d,y:r.q},{x:0,y:r.q}];
 
             [ctx1,ctx2,ctx3,ctx4,ctx5,ctx6].forEach(c=>c.update('none'));
         }
