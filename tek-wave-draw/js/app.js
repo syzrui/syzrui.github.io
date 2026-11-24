@@ -24,6 +24,7 @@
     hoverCursor: -1,
     activeId: null,
     hover: null,
+    pointer: null,
     boxTool: false,
     boxSelect: null,
     theme: localStorage.getItem('tekscope-theme') === 'light' ? 'light' : 'dark',
@@ -96,6 +97,8 @@
   function viewChanged() {
     scheduleRender();
     scheduleMeasure();
+    // 视图变了但指针没动时，命中状态可能已经失效，这里按指针实际位置重算
+    refreshHoverCursor();
   }
 
   /* ============================ 视图 ============================ */
@@ -570,6 +573,13 @@
     return changed;
   }
 
+  /** 视图变化后按指针“当前实际位置”重算光标命中，避免高亮与实际位置脱节 */
+  function refreshHoverCursor() {
+    if (drag) return;                    // 拖拽中由拖拽逻辑接管样式
+    if (!state.pointer) { setCanvasCursor(-1); return; }
+    setCanvasCursor(insidePlot(state.pointer) ? hitCursor(state.pointer) : -1);
+  }
+
   function moveCursor(i, t) {
     const [lo, hi] = dataBounds();
     state.cursors[i] = Math.max(lo, Math.min(hi, t));
@@ -602,6 +612,7 @@
 
   canvas.addEventListener('pointermove', (evt) => {
     const pt = localPoint(evt);
+    state.pointer = pt;
     if (!drag) {
       const changed = setCanvasCursor(hitCursor(pt));
       if (state.channels.length && insidePlot(pt)) {
@@ -649,6 +660,7 @@
     // 松手后按当前指针位置恢复光标样式，避免停在 grabbing / 错位
     if (evt && typeof evt.clientX === 'number') {
       const pt = localPoint(evt);
+      state.pointer = pt;
       setCanvasCursor(insidePlot(pt) ? hitCursor(pt) : -1);
       scheduleRender();
     } else {
@@ -659,6 +671,7 @@
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
   canvas.addEventListener('pointerleave', () => {
+    state.pointer = null;
     setCanvasCursor(-1);
     if (!drag && state.hover) { state.hover = null; }
     scheduleRender();
@@ -670,8 +683,20 @@
     if (!state.channels.length) return;
     evt.preventDefault();
     const pt = localPoint(evt);
-    if (evt.shiftKey) pan(evt.deltaY * 0.0016);
-    else zoom(Math.exp((evt.deltaY + evt.deltaX) * 0.0016), renderer.tOf(pt.x, state.view));
+    state.pointer = pt;
+
+    if (evt.shiftKey) {
+      pan(evt.deltaY * 0.0016);
+      return;
+    }
+
+    // 指针压在光标线上时，以这条光标的时间做缩放锚点：
+    // 光标会停在原来的像素位置（而不是按指针与线的偏差逐次放大而漂走），
+    // 否则滚几格后线就跑到离指针很远的地方、高亮跟着乱跳。
+    const ci = hitCursor(pt);
+    const anchor = ci >= 0 ? state.cursors[ci] : renderer.tOf(pt.x, state.view);
+    zoom(Math.exp((evt.deltaY + evt.deltaX) * 0.0016), anchor);
+    if (ci >= 0) setCanvasCursor(ci);
   }, { passive: false });
 
   canvas.addEventListener('touchstart', (evt) => {

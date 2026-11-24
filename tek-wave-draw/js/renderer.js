@@ -501,15 +501,21 @@
     drawCursorTags(ctx, p, L, state) {
       const xs = [this.xOf(state.cursors[0], state.view), this.xOf(state.cursors[1], state.view)];
       const gap = Math.abs(xs[1] - xs[0]);
+      // 错位布局带滞回：只在明显重叠 / 明显分开时切换，缩放时不会来回翻跳
+      if (!this._tagStagger && gap < 30) this._tagStagger = true;
+      else if (this._tagStagger && gap > 44) this._tagStagger = false;
+      const stagger = !!this._tagStagger;
+
       ctx.font = MONO_SMALL;
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'center';
       const w = 26, h = 15;
       xs.forEach((x, i) => {
+        // 线在视野外就不画标签，否则标签会被钳在边框上，看着像多出来一条光标
+        if (x < L.left - 0.5 || x > L.right + 0.5) return;
         const hot = state.hoverCursor === i;
         const cx = Math.max(L.left + w / 2 + 1, Math.min(L.right - w / 2 - 1, x));
-        // 两条线挨太近时把 X2 的标签上移一格，避免相互压叠
-        const y = (i === 1 && gap < w + 6) ? L.bottom - 19 - h - 3 : L.bottom - 19;
+        const y = (i === 1 && stagger) ? L.bottom - 19 - h - 3 : L.bottom - 19;
         ctx.fillStyle = p.cursor;
         ctx.globalAlpha = hot ? 1 : 0.92;
         this.roundRect(ctx, cx - w / 2, y, w, h, 3);
@@ -530,16 +536,29 @@
     drawCursorLabels(ctx, p, L, state) {
       const [c1, c2] = state.cursors;
       const dt = Math.abs(c2 - c1);
-      const full = 'X1 ' + TekWave.formatTime(c1) +
+      // 光标跑出视野时在名字后加箭头，提示它被推到哪一侧了（否则线会“凭空消失”）
+      const mark = (i) => {
+        const x = this.xOf(state.cursors[i], state.view);
+        if (x < L.left) return '‹';
+        if (x > L.right) return '›';
+        return '';
+      };
+      const n1 = 'X1' + mark(0);
+      const n2 = 'X2' + mark(1);
+      const full = n1 + ' ' + TekWave.formatTime(c1) +
         '   ΔX ' + TekWave.formatTime(dt) + ' (' + TekWave.formatSI(dt > 0 ? 1 / dt : NaN, 'Hz', 3) + ')' +
-        '   X2 ' + TekWave.formatTime(c2);
-      const brief = 'X1 ' + TekWave.formatTime(c1) + '  ΔX ' + TekWave.formatTime(dt) +
-        '  X2 ' + TekWave.formatTime(c2);
+        '   ' + n2 + ' ' + TekWave.formatTime(c2);
+      const brief = n1 + ' ' + TekWave.formatTime(c1) + '  ΔX ' + TekWave.formatTime(dt) +
+        '  ' + n2 + ' ' + TekWave.formatTime(c2);
       ctx.font = MONO_SMALL;
       ctx.textBaseline = 'middle';
-      let text = full;
-      let w = ctx.measureText(text).width + 16;
-      if (w > L.w - 20) { text = brief; w = ctx.measureText(text).width + 16; }
+      const wFull = ctx.measureText(full).width + 16;
+      const wBrief = ctx.measureText(brief).width + 16;
+      // 长短两种排版之间也加滞回，避免缩放时文本来回切换
+      if (!this._briefPill && wFull > L.w - 20) this._briefPill = true;
+      else if (this._briefPill && wBrief < L.w - 48) this._briefPill = false;
+      const text = this._briefPill ? brief : full;
+      const w = this._briefPill ? wBrief : wFull;
       // 默认贴右上角；若会被左上角通道标签压到，就下移一行
       const x = Math.max(L.left + 6, L.right - w - 8);
       const y = x < (this._badgeRight || 0) + 8 ? L.top + 28 : L.top + 6;
