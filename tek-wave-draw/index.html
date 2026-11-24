@@ -95,7 +95,7 @@
       <span id="statusRate">采样率 —</span>
       <span id="statusRender">渲染 —</span>
       <span class="grow"></span>
-      <span class="tip">滚轮缩放 · 拖拽平移 · 双击适应 · Alt 拖拽框选</span>
+      <span class="tip">滚轮以鼠标为中心缩放 · 拖拽平移 · 刻度条拖选宽度 · 双击适应</span>
     </div>
   </section>
 
@@ -115,7 +115,7 @@
 
     <section class="card" id="cursorCard">
       <h2>光标</h2>
-      <div class="kv" id="cursorReadout"><p class="muted">开启「光标」后可拖动 X1 / X2，测量 ΔX、各通道在两条光标处的 Y 值与区间平均值。</p></div>
+      <div class="kv" id="cursorReadout"><p class="muted">开启「光标」后可拖动 X1 / X2。两条光标锚定在绘图区像素位置，缩放平移时屏幕不动，时间与测量值实时重算。</p></div>
     </section>
 
     <section class="card">
@@ -139,10 +139,13 @@
 
       <h3>鼠标 / 触屏</h3>
       <ul>
-        <li>滚轮：以指针为中心缩放时间轴；<kbd>Shift</kbd> + 滚轮：平移。</li>
+        <li>滚轮：以鼠标当前所在时间点为锚点缩放时间轴（锚点对应时间严格不变）；<kbd>Shift</kbd> + 滚轮：平移。</li>
+        <li>时间窗口最大就是整段波形：加载后即处于该状态，继续向下滚动不会再缩小，也不会出现比数据更宽的时间轴；此时拖动同样不会把窗口移出数据范围（需要左右移动请先放大）。</li>
         <li>拖拽：平移；<kbd>Alt</kbd> + 拖拽（或右键拖拽）：框选放大；双击：适应全部。</li>
+        <li>在底部时间刻度条上左右拖选，可直接把横轴缩放到该宽度。</li>
         <li>「固定档位」模式下，通道卡片上的 − / + 调整 V/div，滑杆调整垂直位移。</li>
-        <li>开启「光标」后拖动 X1 / X2 竖线（指针移到线上会变成左右箭头），右侧给出每条光标处的 Y 值、ΔY 与区间平均值。</li>
+        <li>开启「光标」后拖动 X1 / X2 竖线（指针移到线上会变成左右箭头）。两条光标锚定在<b>绘图区像素位置</b>：缩放、平移时屏幕位置不变，对应的实际时间与测量值实时重算。</li>
+        <li>右侧「光标」面板给出 X1/X2 时间、ΔT、周期 T、频率 f，以及各通道 Y@X1、Y@X2、ΔY、X1→X2 区间均值（区间内采样点平均，宽区间等间隔抽样）；f = 1/|ΔT| 只代表当前光标间隔的倒数，跨一个完整周期时才等于信号频率。</li>
         <li>触屏：单指平移，双指捏合缩放。</li>
       </ul>
 
@@ -162,6 +165,8 @@
 
 <script src="js/isf-parser.js"></script>
 <script src="js/waveform.js"></script>
+<script src="js/viewport.js"></script>
+<script src="js/measure.js"></script>
 <script src="js/renderer.js"></script>
 <script src="js/app.js"></script>
 </body>

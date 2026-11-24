@@ -1,0 +1,19 @@
+# 原始波形文件很大（单通道 10M 点约 20 MB），不要提交到仓库
+*.isf
+*.wfm
+*.isf.gz
+# 但随附示例数据要保留（首屏默认波形从 ./samples/CH*.isf 读取）
+!/samples/CH1.isf
+!/samples/CH2.isf
+!/samples/CH3.isf
+!/samples/CH4.isf
+
+# 开发临时文件
+_tmp_*
+_shot*.png
+!preview.png
+
+# 系统 / 依赖
+node_modules/
+.DS_Store
+Thumbs.db
