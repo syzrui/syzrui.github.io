@@ -109,14 +109,18 @@
       };
     }
 
-    xOf(t, view) {
-      const L = this.layout();
-      return L.left + (t - view.t0) / (view.t1 - view.t0) * L.w;
+    /* 坐标换算全部委托给 viewport（唯一状态源），这里只补上绘图区左边距 */
+    xOf(t) {
+      return this.layout().left + this.vp.xOf(t);
     }
 
-    tOf(x, view) {
-      const L = this.layout();
-      return view.t0 + (x - L.left) / L.w * (view.t1 - view.t0);
+    tOf(x) {
+      return this.vp.timeAt(x - this.layout().left);
+    }
+
+    /** 光标像素锚点 → 控件坐标 */
+    xOfCursor(px) {
+      return this.layout().left + px;
     }
 
     /** 每个可见通道的纵向几何（自动量程 / 固定档位） */
@@ -129,7 +133,7 @@
         const ch = visible[i];
         const laneH = state.mode === 'stack' ? L.h / n : L.h;
         const laneTop = state.mode === 'stack' ? L.top + laneH * i : L.top;
-        const ext = ch.columnExtremes(state.view.t0, state.view.t1, Math.max(1, Math.round(L.w)));
+        const ext = ch.columnExtremes(this.vp.t0, this.vp.t1, Math.max(1, Math.round(L.w)));
         let lo = Infinity, hi = -Infinity;
         for (let c = 0; c < ext.min.length; c++) {
           if (ext.min[c] < lo) lo = ext.min[c];
@@ -174,6 +178,7 @@
     }
 
     draw(state) {
+      this.vp = state.viewport;      // 唯一坐标状态源
       const ctx = this.ctx;
       const p = PALETTES[state.theme] || PALETTES.dark;
       const L = this.layout();
@@ -228,17 +233,66 @@
       }
     }
 
+    /**
+     * 时间刻度：1-2-5 阶梯，并锚定在「绝对时间的整数倍」上。
+     * 这样平移时网格随波形一起连续移动，缩放时只在 1→2→5 换档，
+     * 不会像按视图两端均分那样每次都重新洗牌导致刻度乱跳。
+     */
+    timeScale(state, L) {
+      const ctx = this.ctx;
+      const t0 = this.vp.t0;
+      const t1 = this.vp.t1;
+      const span = t1 - t0;
+      if (!(span > 0)) return { step: 1, ticks: [], unitScale: 1, digits: 2 };
+
+      const unitScale = TekWave.pick(Math.max(Math.abs(t0), Math.abs(t1), span))[0];
+      const digitsFor = (s) => {
+        const sv = Math.abs(s / unitScale);
+        if (sv >= 1) return 1;
+        return Math.min(7, Math.max(1, Math.ceil(-Math.log10(sv)) + 1));
+      };
+      const ticksOf = (step) => {
+        const out = [];
+        const i0 = Math.ceil(t0 / step - 1e-9);
+        const i1 = Math.floor(t1 / step + 1e-9);
+        for (let i = i0; i <= i1 && out.length < 80; i++) out.push(i * step);
+        return out;
+      };
+
+      ctx.font = MONO_SMALL;
+      let step = niceCeil(span / 10);
+      let digits = digitsFor(step);
+      let ticks = ticksOf(step);
+      if (ticks.length < 3 && step > span / 64) {
+        step = niceCeil(span / 20);
+        digits = digitsFor(step);
+        ticks = ticksOf(step);
+      }
+      // 标签放不下就升一档（1→2→5），阶梯连续，不会出现 10/8/5/4 的突变
+      for (let guard = 0; guard < 14 && ticks.length > 1; guard++) {
+        let widest = 0;
+        for (const t of ticks) {
+          const w = ctx.measureText(TekWave.formatTimeFixed(t, unitScale, digits)).width;
+          if (w > widest) widest = w;
+        }
+        if ((widest + 18) * ticks.length <= L.w) break;
+        const next = niceNext(step);
+        if (!(next > step)) break;
+        step = next;
+        digits = digitsFor(step);
+        ticks = ticksOf(step);
+      }
+      return { step, ticks, unitScale, digits };
+    }
+
     drawGraticule(ctx, p, L, state) {
       if (!state.showGrid) return;
-      const cols = 10, rows = 8;
+      const rows = 8;
       ctx.lineWidth = 1;
+
+      // 横向：幅度轴固定 8 格
       ctx.strokeStyle = p.gridMinor;
       ctx.beginPath();
-      for (let i = 0; i <= cols * 5; i++) {
-        if (i % 5 === 0) continue;
-        const x = Math.round(L.left + L.w * i / (cols * 5)) + 0.5;
-        ctx.moveTo(x, L.top); ctx.lineTo(x, L.bottom);
-      }
       for (let i = 0; i <= rows * 5; i++) {
         if (i % 5 === 0) continue;
         const y = Math.round(L.top + L.h * i / (rows * 5)) + 0.5;
@@ -246,10 +300,30 @@
       }
       ctx.stroke();
 
+      // 纵向：与时间刻度共用同一档阶梯，锚定绝对时间
+      const scale = this.timeScale(state, L);
+      const span = this.vp.dur;
+      const minorStep = scale.step / 5;
+      const minorPx = span > 0 ? L.w * minorStep / span : 0;
+
+      if (minorPx >= 5) {
+        ctx.strokeStyle = p.gridMinor;
+        ctx.beginPath();
+        for (const t of scale.ticks) {
+          for (let k = 1; k < 5; k++) {
+            const x = Math.round(this.xOf(t + minorStep * k)) + 0.5;
+            if (x < L.left || x > L.right) continue;
+            ctx.moveTo(x, L.top); ctx.lineTo(x, L.bottom);
+          }
+        }
+        ctx.stroke();
+      }
+
       ctx.strokeStyle = p.gridMajor;
       ctx.beginPath();
-      for (let i = 0; i <= cols; i++) {
-        const x = Math.round(L.left + L.w * i / cols) + 0.5;
+      for (const t of scale.ticks) {
+        const x = Math.round(this.xOf(t)) + 0.5;
+        if (x < L.left || x > L.right) continue;
         ctx.moveTo(x, L.top); ctx.lineTo(x, L.bottom);
       }
       for (let i = 0; i <= rows; i++) {
@@ -286,7 +360,7 @@
     drawTrace(ctx, p, L, f, state) {
       const ch = f.ch;
       const color = p.colors[ch.colorIndex % p.colors.length];
-      const range = ch.indexRange(state.view.t0, state.view.t1);
+      const range = ch.indexRange(this.vp.t0, this.vp.t1);
       if (!range) return;
       const [i0, i1] = range;
       const span = i1 - i0 + 1;
@@ -304,7 +378,7 @@
         // 稀疏：逐点连线
         ctx.beginPath();
         for (let i = i0; i <= i1; i++) {
-          const x = this.xOf(ch.startTime + i * ch.xIncrement, state.view);
+          const x = this.xOf(ch.startTime + i * ch.xIncrement);
           const y = f.yOf((ch.raw[i] - ch.yOff) * ch.yMult + ch.yZero);
           if (i === i0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
@@ -316,7 +390,7 @@
         if (span < cols * 0.6) {
           ctx.fillStyle = color;
           for (let i = i0; i <= i1; i++) {
-            const x = this.xOf(ch.startTime + i * ch.xIncrement, state.view);
+            const x = this.xOf(ch.startTime + i * ch.xIncrement);
             const y = f.yOf((ch.raw[i] - ch.yOff) * ch.yMult + ch.yZero);
             ctx.fillRect(x - 1.25, y - 1.25, 2.5, 2.5);
           }
@@ -363,39 +437,22 @@
     }
 
     drawTimeAxis(ctx, p, L, state) {
-      const span = state.view.t1 - state.view.t0;
-
       ctx.font = MONO_SMALL;
-      // 按标签实际宽度挑选刻度数量，避免相邻标签互相压叠
-      let ticks = 4;
-      let labels = [];
-      for (const cand of [10, 8, 5, 4]) {
-        const step = span / cand;
-        const candLabels = [];
-        for (let i = 0; i <= cand; i++) candLabels.push(state.view.t0 + step * i);
-        const unitScale = TekWave.pick(Math.max(Math.abs(state.view.t0), Math.abs(state.view.t1), span))[0];
-        const sv = Math.abs(step / unitScale);
-        const d = sv >= 1 ? 1 : sv >= 0.1 ? 2 : sv >= 0.01 ? 3 : 4;
-        const maxW = Math.max.apply(null, candLabels.map(t => ctx.measureText(TekWave.formatTimeFixed(t, unitScale, d)).width));
-        ticks = cand;
-        labels = candLabels;
-        if (L.w / cand >= maxW + 16) break;
-      }
-
-      const tickStep = span / ticks;
-      const unitScale = TekWave.pick(Math.max(Math.abs(state.view.t0), Math.abs(state.view.t1), span))[0];
-      const sv = Math.abs(tickStep / unitScale);
-      const digits = sv >= 1 ? 1 : sv >= 0.1 ? 2 : sv >= 0.01 ? 3 : 4;
-
-      ctx.fillStyle = p.text;
       ctx.textBaseline = 'top';
-      for (let i = 0; i <= ticks; i++) {
-        const x = L.left + L.w * i / ticks;
-        ctx.textAlign = i === 0 ? 'left' : i === ticks ? 'right' : 'center';
-        ctx.fillText(TekWave.formatTimeFixed(labels[i], unitScale, digits), x, L.bottom + 8);
+      ctx.fillStyle = p.text;
+      const scale = this.timeScale(state, L);
+
+      for (const t of scale.ticks) {
+        const x = this.xOf(t);
+        if (x < L.left - 1 || x > L.right + 1) continue;
+        if (x < L.left + 28) ctx.textAlign = 'left';
+        else if (x > L.right - 28) ctx.textAlign = 'right';
+        else ctx.textAlign = 'center';
+        ctx.fillText(TekWave.formatTimeFixed(t, scale.unitScale, scale.digits), x, L.bottom + 8);
       }
       ctx.textAlign = 'left';
-      ctx.fillText(TekWave.formatTimeFixed(tickStep, unitScale, digits) + '/div', L.left, L.bottom + 20);
+      ctx.fillText(TekWave.formatTimeFixed(scale.step, scale.unitScale, scale.digits) + '/div',
+        L.left, L.bottom + 20);
     }
 
     drawValueAxis(ctx, p, L, state, frames) {
@@ -466,8 +523,8 @@
 
 
     drawCursors(ctx, p, L, state) {
-      const [c1, c2] = state.cursors;
-      const xs = [this.xOf(c1, state.view), this.xOf(c2, state.view)];
+      // 光标锚定在绘图区局部像素上，与时间轴完全解耦
+      const xs = [L.left + state.cursors.x1, L.left + state.cursors.x2];
       if (Math.abs(xs[1] - xs[0]) > 2) {
         ctx.fillStyle = p.cursorAlt;
         ctx.fillRect(Math.min(xs[0], xs[1]), L.top, Math.abs(xs[1] - xs[0]), L.h);
@@ -499,7 +556,7 @@
 
     /** 光标名称标签（X1 / X2）贴在各自光标的底部 */
     drawCursorTags(ctx, p, L, state) {
-      const xs = [this.xOf(state.cursors[0], state.view), this.xOf(state.cursors[1], state.view)];
+      const xs = [L.left + state.cursors.x1, L.left + state.cursors.x2];
       const gap = Math.abs(xs[1] - xs[0]);
       // 错位布局带滞回：只在明显重叠 / 明显分开时切换，缩放时不会来回翻跳
       if (!this._tagStagger && gap < 30) this._tagStagger = true;
@@ -534,17 +591,12 @@
     }
 
     drawCursorLabels(ctx, p, L, state) {
-      const [c1, c2] = state.cursors;
+      // 像素锚点 → 当前时间（唯一换算入口），所以缩放/平移后这里是新时间
+      const c1 = this.vp.timeAt(state.cursors.x1);
+      const c2 = this.vp.timeAt(state.cursors.x2);
       const dt = Math.abs(c2 - c1);
-      // 光标跑出视野时在名字后加箭头，提示它被推到哪一侧了（否则线会“凭空消失”）
-      const mark = (i) => {
-        const x = this.xOf(state.cursors[i], state.view);
-        if (x < L.left) return '‹';
-        if (x > L.right) return '›';
-        return '';
-      };
-      const n1 = 'X1' + mark(0);
-      const n2 = 'X2' + mark(1);
+      const n1 = 'X1';
+      const n2 = 'X2';
       const full = n1 + ' ' + TekWave.formatTime(c1) +
         '   ΔX ' + TekWave.formatTime(dt) + ' (' + TekWave.formatSI(dt > 0 ? 1 / dt : NaN, 'Hz', 3) + ')' +
         '   ' + n2 + ' ' + TekWave.formatTime(c2);
@@ -575,7 +627,7 @@
 
     drawHover(ctx, p, L, state, frames) {
       const { x, y } = state.hover;
-      const t = this.tOf(x, state.view);
+      const t = this.vp.timeAt(x - L.left);
       ctx.strokeStyle = p.text;
       ctx.globalAlpha = 0.65;
       ctx.lineWidth = 1;
@@ -592,19 +644,19 @@
       // 采样点标记
       const visible = frames.filter(f => !f.empty);
       visible.forEach((f) => {
-        const s = f.ch.sampleAtTime(t);
+        const s = TekMeasure.interpolate(f.ch, t);
         if (!s) return;
         const py = f.yOf(s.value);
         if (py < f.laneTop - 2 || py > f.laneTop + f.laneH + 2) return;
         ctx.fillStyle = p.colors[f.ch.colorIndex % p.colors.length];
         ctx.beginPath();
-        ctx.arc(this.xOf(s.time, state.view), py, 2.6, 0, Math.PI * 2);
+        ctx.arc(this.xOf(t), py, 2.6, 0, Math.PI * 2);
         ctx.fill();
       });
 
       const lines = [{ text: 'T ' + TekWave.formatTime(t), color: p.textStrong }];
       visible.forEach((f) => {
-        const s = f.ch.sampleAtTime(t);
+        const s = TekMeasure.interpolate(f.ch, t);
         lines.push({
           text: f.ch.label + '  ' + (s ? TekWave.formatValue(s.value, f.ch.yUnit) : '—'),
           color: p.colors[f.ch.colorIndex % p.colors.length]
