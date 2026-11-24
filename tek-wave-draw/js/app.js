@@ -44,6 +44,10 @@
   /** 交互状态机：idle | pan | cursor | box | timebox | pinch（同一时刻只允许一种） */
   const interaction = { mode: 'idle', index: -1, anchorT: 0, x0: 0, t0: 0 };
 
+  /* 区间均值求解器：全点参与、分片计算，算完通知重绘（交互帧不等它） */
+  const averageSolver = new TekAverage.Solver();
+  averageSolver.onUpdate = () => scheduleRender();
+
   let renderQueued = false;
   let measureTimer = null;
   let dragDepth = 0;
@@ -91,13 +95,36 @@
     requestAnimationFrame(() => {
       renderQueued = false;
       syncGeometry();
-      state.measure = TekMeasure.cursorMeasurements(state);
+      state.measure = computeMeasure();
       const t = performance.now();
       renderer.draw(state);
       state.renderMs = performance.now() - t;
       updateCursorCard();
       updateStatus();
     });
+  }
+
+  /**
+   * 区间均值：求解器命中缓存直接取数，否则排队（界面先显示「计算中…」）。
+   * 全点参与计算，绝不在渲染帧里遍历区间内的采样点。
+   */
+  function applyAverages(m) {
+    if (!m || !m.rows) return;
+    for (const r of m.rows) {
+      const rng = r.range;
+      if (!rng) { r.average = null; r.avgState = 'invalid'; continue; }
+      const v = averageSolver.request(r.ch, rng[0], rng[1]);
+      r.average = v;
+      r.avgState = v == null ? 'pending' : 'ready';
+      r.avgPoints = rng[1] - rng[0] + 1;
+    }
+  }
+
+  /** 测量快照：时间/幅值每帧现算，区间均值按需排队 */
+  function computeMeasure() {
+    const m = TekMeasure.cursorMeasurements(state);
+    if (state.showCursors) applyAverages(m);
+    return m;
   }
 
   /** 可视区间统计表（通道峰峰/频率）较重，单独节流；光标读数在渲染帧内实时算 */
@@ -223,6 +250,7 @@
   async function loadFiles(fileList) {
     const files = Array.from(fileList || []).filter(f => f && f.size > 0);
     if (!files.length) return;
+    averageSolver.cancelAll();      // 通道即将被替换，旧区间的累加任务立刻作废
     showLoading('读取 ' + files.length + ' 个文件…');
     await nextFrame();
 
@@ -301,6 +329,7 @@
       }
       state.channels = added;
       state.activeId = added[0].id;
+      averageSolver.cancelAll();
       refreshAll();
       fitView();
       if (!silent) toast('已加载四通道示例波形（每 50 点抽取 1 点）');
@@ -314,6 +343,7 @@
 
   /** 无网络 / file:// 打开时的兜底：合成四通道波形 */
   function buildSyntheticDemo() {
+    averageSolver.cancelAll();
     const n = 200000;
     const xIncr = 4e-8;
     const t0 = -3.728e-3;
@@ -496,7 +526,7 @@
       }
       return;
     }
-    const m = state.measure || TekMeasure.cursorMeasurements(state);
+    const m = state.measure || computeMeasure();
 
     const parts = [
       '<div class="kv-row"><span class="cx">X1</span><span>' + TekWave.formatTime(m.timeX1) + '</span></div>',
@@ -514,24 +544,29 @@
         const refScale = (r.valueX1 != null && r.valueX2 != null)
           ? TekWave.pick(Math.max(Math.abs(r.valueX1), Math.abs(r.valueX2)))[0]
           : null;
-        const avgText = r.average == null ? '—' : compactValue(r.average, ch.yUnit, false, refScale);
+        const pending = r.avgState === 'pending';
+        const avgText = pending
+          ? '计算中…'
+          : (r.average == null ? '—' : compactValue(r.average, ch.yUnit, false, refScale));
         const title = ch.label +
           '｜X1 ' + (r.valueX1 == null ? '（超出数据范围）' : TekWave.formatValue(r.valueX1, ch.yUnit)) +
           '，X2 ' + (r.valueX2 == null ? '（超出数据范围）' : TekWave.formatValue(r.valueX2, ch.yUnit)) +
           '，ΔY ' + (r.deltaValue == null ? '—' : TekWave.formatValue(r.deltaValue, ch.yUnit)) +
-          '，区间均值 ' + (r.average == null ? '—' : TekWave.formatValue(r.average, ch.yUnit)) +
-          (r.average == null ? '' : '（区间内采样点等间隔抽样求平均，最多 2 万点）');
+          '，区间均值 ' + (pending
+            ? '计算中（' + r.avgPoints.toLocaleString() + ' 点全量累加）'
+            : (r.average == null ? '—' : TekWave.formatValue(r.average, ch.yUnit) +
+              '（区间内 ' + r.avgPoints.toLocaleString() + ' 个采样点全部参与计算）'));
         rows.push('<tr title="' + escapeHtml(title) + '">' +
           '<td class="ch" style="color:' + colorOf(ch) + '">' + escapeHtml(ch.label) + '</td>' +
           '<td>' + (r.valueX1 == null ? '—' : compactValue(r.valueX1, ch.yUnit)) + '</td>' +
           '<td>' + (r.valueX2 == null ? '—' : compactValue(r.valueX2, ch.yUnit)) + '</td>' +
           '<td>' + (r.deltaValue == null ? '—' : compactValue(r.deltaValue, ch.yUnit, true, refScale)) + '</td>' +
-          '<td>' + avgText + '</td>' +
+          '<td' + (pending ? ' class="calc"' : '') + '>' + avgText + '</td>' +
           '</tr>');
       }
       rows.push('</tbody></table>');
       parts.push('<div class="ctable-wrap">' + rows.join('') + '</div>');
-      parts.push('<p class="note">Y 按时间回查采样点（两点之间线性插值）；均值 = X1→X2 区间内采样点平均（宽区间等间隔抽样，最多 2 万点）；f = 1/|ΔT| 只有当 X1→X2 正好跨一个完整周期时才等于信号频率。</p>');
+      parts.push('<p class="note">Y 按时间回查采样点（两点之间线性插值）；均值 = X1→X2 区间内<b>全部采样点</b>精确求平均，点数多时分片累加、不阻塞界面，完成前显示「计算中…」；f = 1/|ΔT| 只有当 X1→X2 正好跨一个完整周期时才等于信号频率。</p>');
     }
     const html = parts.join('');
     if (html !== box.dataset.sig) {
@@ -1142,7 +1177,8 @@
     fitView, zoomBy, panByFraction, setView, hitCursor,
     interaction,                        // 交互状态机（idle/pan/cursor/...）
     layout: () => renderer.layout(),
-    measurements: () => TekMeasure.cursorMeasurements(state),
+    measurements: () => computeMeasure(),
+    averageSolver,                      // 区间均值求解器（stats 里能查到分片耗时）
     // 测试用：把光标放到指定像素 / 取光标像素与时间
     setCursorPx: (i, x) => { setCursorX(i, x); scheduleRender(); },
     cursorPx: (i) => cursorX(i),

@@ -2,6 +2,9 @@
  * 光标测量模块：只负责「按当前时间轴把像素锚点换算成时间，再算测量值」，
  * 不持有任何状态、不修改视图、不碰 DOM —— 这样任何一处状态变化后重算都不会有副作用。
  *
+ * 区间均值需要遍历区间内全部采样点（可能上千万点），不属于「每帧现算」的范畴：
+ * 这里只交出采样点下标区间，由 js/average.js 分片计算并缓存。
+ *
  * 内部时间单位统一为秒，显示层再做 ns/µs/ms/s 换算。
  */
 (function (root) {
@@ -63,7 +66,7 @@
     const period = validDelta ? deltaTime : null;
     const frequency = validDelta ? 1 / deltaTime : null;
 
-    // 3) 逐通道取幅值 → ΔY → X1↔X2 区间均值
+    // 3) 逐通道取幅值 → ΔY，并给出 X1→X2 的采样点下标区间（区间均值由 TekAverage 异步精确求解）
     const rows = [];
     for (const ch of state.channels) {
       if (!ch.visible) continue;
@@ -72,15 +75,16 @@
       const valueX1 = a ? a.value : null;
       const valueX2 = b ? b.value : null;
       const deltaValue = (valueX1 != null && valueX2 != null) ? valueX2 - valueX1 : null;
-      // 区间均值：两端都落在有效数据内才算；宽区间等间隔抽样（最多 2 万点），
-      // 4 通道合计约 8 万次加法，单帧开销 < 1 ms，又足以覆盖窄脉冲
-      const average = (a && b) ? ch.averageBetween(timeX1, timeX2, 20000) : null;
+      // 两端都落在有效数据内才统计区间；下标区间交给求解器，测量层不做抽样
+      const range = (a && b)
+        ? ch.indexRange(Math.min(timeX1, timeX2), Math.max(timeX1, timeX2))
+        : null;
       rows.push({
         ch,
         valueX1,
         valueX2,
         deltaValue,
-        average,
+        range,
         exactX1: a ? a.exact : false,
         exactX2: b ? b.exact : false,
         valid: valueX1 != null && valueX2 != null

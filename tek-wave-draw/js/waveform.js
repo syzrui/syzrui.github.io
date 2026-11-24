@@ -197,20 +197,7 @@
       return { min: mn, max: mx, pp, avg, rms, freq, period, sampled: count, total };
     }
 
-    /** 区间平均值：只求和，不做边沿检测，供光标区间实时读数使用 */
-    averageBetween(t0, t1, maxPoints) {
-      const range = this.indexRange(Math.min(t0, t1), Math.max(t0, t1));
-      if (!range) return null;
-      const [start, end] = range;
-      const total = end - start + 1;
-      const stride = Math.max(1, Math.floor(total / (maxPoints || 120000)));
-      let sum = 0, count = 0;
-      for (let i = start; i <= end; i += stride) {
-        sum += (this.raw[i] - this.yOff) * this.yMult + this.yZero;
-        count++;
-      }
-      return count ? sum / count : null;
-    }
+    /* 光标区间均值不在这里：全点累加可能上千万点，必须分片计算，见 js/average.js */
   }
 
   /* ------------------------------ 数值格式化 ------------------------------ */
