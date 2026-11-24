@@ -382,6 +382,10 @@ input[type="range"]::-moz-range-thumb {
 }
 .ctable tr:last-child td { border-bottom: none; }
 .ctable td.ch { font-weight: 650; padding-right: 4px; }
+/* 区间均值正在分片累加：占位文本用呼吸动画表示“还在算”，算完原位替换为数值 */
+.ctable td.calc { color: var(--muted); font-size: 9.5px; animation: calcPulse 1.1s ease-in-out infinite; }
+@keyframes calcPulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .ctable td.calc { animation: none; } }
 .ctable tbody tr:hover td { background: rgba(120, 160, 220, 0.06); }
 .kv p { margin: 0; font-family: var(--sans); font-size: 11px; color: var(--muted); line-height: 1.6; }
 
