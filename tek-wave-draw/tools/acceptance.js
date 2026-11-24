@@ -147,13 +147,26 @@ async function main() {
       x1: s.cursors.x1, x2: s.cursors.x2,
       timeX1: m.timeX1, timeX2: m.timeX2, dt: m.deltaTime, f: m.frequency,
       mode: __tekScope.interaction.mode,
-      rows: m.rows.map(r => ({ label: r.ch.label, v1: r.valueX1, v2: r.valueX2, dv: r.deltaValue, avg: r.average }))
+      rows: m.rows.map(r => ({ label: r.ch.label, v1: r.valueX1, v2: r.valueX2, dv: r.deltaValue,
+                               avg: r.average, avgState: r.avgState, points: r.avgPoints }))
     };
   })()`);
 
   const setCursors = (x1, x2) => ev(`(() => { __tekScope.setCursorPx(0, ${x1}); __tekScope.setCursorPx(1, ${x2}); return 1; })()`);
   const setView = (t0, dur) => ev(`(() => { __tekScope.viewport.setWindow(${t0}, ${dur}); __tekScope.fitView === null; return 1; })()`);
   const rel = (a, b) => Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b), 1e-30);
+
+  /** 等区间均值算完（大区间走分片异步），返回各通道行 */
+  async function waitRows(timeout = 8000) {
+    const t0 = Date.now();
+    let rows = [];
+    while (Date.now() - t0 < timeout) {
+      rows = (await snap()).rows;
+      if (rows.length && rows.every(r => r.avgState !== 'pending')) return rows;
+      await sleep(60);
+    }
+    return rows;
+  }
 
   await ev(`document.querySelector('#btnCursor').click(); __tekScope.fitView();`);
   await sleep(250);
@@ -731,13 +744,15 @@ async function main() {
     await ev(`__tekScope.fitView()`); await sleep(120);
     await setCursors(200, 560); await sleep(120);
     const a = await snap();
-    const rowA = a.rows.find((r) => Math.abs(r.dv || 0) > 1e-6) || a.rows[0];
+    const rowsA = await waitRows();
+    const rowA = rowsA.find((r) => Math.abs(r.dv || 0) > 1e-6) || rowsA[0];
     await setCursors(560, 200); await sleep(120);
     const b = await snap();
-    const rowB = b.rows.find((r) => r.label === rowA.label);
+    const rowsB = await waitRows();
+    const rowB = rowsB.find((r) => r.label === rowA.label);
     // 均值只取决于区间 [min(t1,t2), max(t1,t2)]，交换 X1/X2 后必须完全一致
     const avgStable = rowA.avg != null && rowB.avg != null
-      && Math.abs(rowA.avg - rowB.avg) < Math.abs(rowA.avg) * 1e-9 + 1e-15;
+      && Math.abs(rowA.avg - rowB.avg) < Math.abs(rowA.avg) * 1e-12 + 1e-15;
     const dYFlip = Math.abs((rowB.dv || 0) + (rowA.dv || 0)) < Math.abs(rowA.dv) * 1e-9 + 1e-15;
     record('M13', '交换 X1/X2：ΔT 非负、ΔY 反号、区间均值不变',
       a.dt === b.dt && b.dt > 0 && avgStable && dYFlip,
@@ -764,10 +779,11 @@ async function main() {
       `上限越界 ${r.outHiNull}／下限越界 ${r.outLoNull}／区间内有效 ${r.midOk}／格式化 “${r.fmt}”`);
   }
 
-  // M15 区间均值 = X1→X2 区间内采样点算术平均（与逐点全分辨率求和对照）
+  // M15 区间均值 = 区间内「全部」采样点的算术平均（与逐点全分辨率求和对照，不得有抽样误差）
   {
     await ev(`__tekScope.fitView()`); await sleep(120);
     await setCursors(300, 620); await sleep(140);
+    await waitRows();                        // 等分片计算结束
     const r = await ev(`(() => {
       const s = __tekScope.state, m = __tekScope.measurements();
       const row = m.rows[0], ch = row.ch;
@@ -786,17 +802,89 @@ async function main() {
         ? document.querySelector('#cursorReadout .ctable tbody tr').children.length : 0;
       return {
         brute: sum / n, points: n, mn, mx, avg: row.average, unit: ch.yUnit,
+        state: row.avgState, rowPoints: row.avgPoints,
         heads, cells,
         slopeGone: heads.indexOf('斜率') < 0 && heads.indexOf('均值') >= 0
       };
     })()`);
-    const pp = r.mx - r.mn;
-    const near = r.avg != null && Math.abs(r.avg - r.brute) <= pp * 0.01 + 1e-12
-      && r.avg >= r.mn && r.avg <= r.mx;
-    record('M15', '区间均值 = X1→X2 区间内采样点平均（列头已由斜率改为均值）',
-      near && r.slopeGone && r.cells === 5,
-      '均值落在区间极值内，且与全分辨率逐点求平均相差 ≤1% 峰峰值；表格为 5 列且不含斜率',
-      `均值 ${r.avg.toExponential(4)} ${r.unit} vs 逐点 ${r.brute.toExponential(4)} ${r.unit}（${r.points.toLocaleString()} 点，峰峰 ${pp.toExponential(3)} ${r.unit}）；列头 ${r.heads.join('/')}（${r.cells} 列）`);
+    const ok = r.avg != null && r.state === 'ready'
+      && r.rowPoints === r.points                      // 参与计算的点数 = 区间内全部点数
+      && rel(r.avg, r.brute) < 1e-9                    // 与全分辨率逐点平均一致（无抽样偏差）
+      && r.avg >= r.mn && r.avg <= r.mx
+      && r.slopeGone && r.cells === 5;
+    record('M15', '区间均值 = 区间内全部采样点的算术平均（列头为「均值」）',
+      ok,
+      '参与点数 = 区间点数；与全分辨率逐点求平均相对误差 < 1e-9；表格 5 列且不含斜率',
+      `均值 ${r.avg.toExponential(6)} vs 逐点 ${r.brute.toExponential(6)} ${r.unit}（${r.points.toLocaleString()} 点，相对差 ${rel(r.avg, r.brute).toExponential(2)}）；列头 ${r.heads.join('/')}（${r.cells} 列）`);
+  }
+
+  // M16 大区间（>12 万点）走分片异步：先返回「计算中」，分片不占满一帧，结果精确
+  {
+    const start = await ev(`(() => {
+      const S = __tekScope.averageSolver;
+      S.stats.asyncJobs = 0; S.stats.syncJobs = 0; S.stats.slices = 0; S.stats.maxSliceMs = 0;
+      const n = 6000000;
+      const raw = new Float32Array(n);
+      for (let i = 0; i < n; i++) raw[i] = Math.sin(i * 0.001) * 3 + ((i % 70000) === 0 ? 400 : 0);
+      const fake = { raw, yOff: 0, yMult: 1, yZero: 0 };
+      window.__bigCh = fake;
+      const first = S.request(fake, 0, n - 1);     // 必须立刻返回 null（计算中）
+      return { first, n, sync: S.stats.syncJobs };
+    })()`);
+
+    let last = null;
+    for (let i = 0; i < 200; i++) {
+      last = await ev(`(() => {
+        const S = __tekScope.averageSolver, f = window.__bigCh;
+        return { v: S.value(f, 0, 5999999), busy: S.busy(f),
+                 slices: S.stats.slices, maxSliceMs: S.stats.maxSliceMs };
+      })()`);
+      if (last.v !== undefined) break;
+      await sleep(40);
+    }
+
+    const expect = await ev(`(() => {
+      const f = window.__bigCh; let sum = 0;
+      for (let i = 0; i < f.raw.length; i++) sum += f.raw[i];
+      return sum / f.raw.length;
+    })()`);
+
+    const ok = start.first === null && start.sync === 0
+      && last.v != null && Number.isFinite(last.v)
+      && rel(last.v, expect) < 1e-9
+      && last.slices >= 2 && last.maxSliceMs < 16;
+    record('M16', '600 万点区间：先「计算中」→ 分片累加 → 结果与全量求和一致',
+      ok,
+      '首次请求返回 null；单次分片耗时 < 16 ms（不超过一帧）；结果与全量求和相对误差 < 1e-9',
+      `首次 ${start.first === null ? 'null（计算中）' : start.first}，同步任务 ${start.sync} 次，分片 ${last.slices} 次，单片最长 ${last.maxSliceMs.toFixed(2)} ms，均值 ${last.v.toExponential(6)} vs ${expect.toExponential(6)}（相对差 ${rel(last.v, expect).toExponential(2)}）`);
+    await ev(`delete window.__bigCh; 1`);
+  }
+
+  // M17 真实面板：大区间先显示「计算中…」，算完原位替换为数值
+  {
+    await ev(`__tekScope.fitView()`); await sleep(120);
+    await setCursors(30, 730);                 // ~18 万点/通道 > 12 万 → 必然异步
+    await sleep(60);
+    const during = await ev(`(() => {
+      const tds = [...document.querySelectorAll('#cursorReadout .ctable td.calc')];
+      return { count: tds.length, text: tds.length ? tds[0].textContent.trim() : '' };
+    })()`);
+    let after = null;
+    for (let i = 0; i < 120; i++) {
+      after = await ev(`(() => {
+        const tds = [...document.querySelectorAll('#cursorReadout .ctable td.calc')];
+        const cells = [...document.querySelectorAll('#cursorReadout .ctable tbody tr')]
+          .map(tr => tr.children[4].textContent.trim());
+        return { pending: tds.length, cells };
+      })()`);
+      if (after.pending === 0) break;
+      await sleep(50);
+    }
+    const numeric = after.cells.length === 4 && after.cells.every(t => /\d/.test(t));
+    record('M17', '大区间下光标面板先显示「计算中…」，算完替换为均值',
+      during.count >= 1 && during.text.indexOf('计算中') === 0 && after.pending === 0 && numeric,
+      '计算期间每通道单元格为「计算中…」；结束后同位置显示数值',
+      `计算中单元格 ${during.count} 个（“${during.text}”）→ 结束后 ${after.pending} 个，均值列 ${after.cells.join(' / ')}`);
   }
 
   /* ==================== 10.5 综合交互 ==================== */
